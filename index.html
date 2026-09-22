@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="manifest" href="manifest.json">
+  <title>Collably — Hire Your Online Team</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand" onclick="showPage('home')">collably</div>
+      <div class="search-wrap">
+        <span>⌕</span>
+        <input id="search" type="search" placeholder="Search editors, clippers, designers..." oninput="searchWorkers()">
+      </div>
+      <nav>
+        <button class="nav-btn active" onclick="showPage('home')">Home</button>
+        <button class="nav-btn" onclick="showPage('discover')">Discover</button>
+        <button class="nav-btn" onclick="showPage('messages')">Messages</button>
+        <button class="avatar" onclick="showPage('profile')">TK</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="home" class="page active">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">YOUR ONLINE TEAM, IN ONE PLACE</p>
+            <h1>Find people who make your ideas <span>happen.</span></h1>
+            <p class="hero-copy">Browse real work, find the right talent, and build your remote team without the usual hassle.</p>
+            <button class="primary" onclick="showPage('discover')">Find a worker</button>
+            <button class="secondary" onclick="openSignup('worker')">Join as a worker</button>
+          </div>
+          <div class="hero-card">
+            <div class="mini-stat"><strong>12.4k</strong><span>Creators</span></div>
+            <div class="mini-stat"><strong>4.8k</strong><span>Projects filled</span></div>
+            <div class="mini-stat"><strong>4.9/5</strong><span>Avg. rating</span></div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div><p class="eyebrow">THE FEED</p><h2>See what people can do</h2></div>
+          <button class="text-btn" onclick="showPage('discover')">View all →</button>
+        </div>
+        <div id="feed" class="feed"></div>
+      </section>
+
+      <section id="discover" class="page">
+        <div class="section-head">
+          <div><p class="eyebrow">DISCOVER TALENT</p><h2>Find your next team member</h2></div>
+        </div>
+        <div class="filters">
+          <button class="filter active" onclick="filterWorkers('All', this)">All</button>
+          <button class="filter" onclick="filterWorkers('Video Editor', this)">Video Editors</button>
+          <button class="filter" onclick="filterWorkers('Clipper', this)">Clippers</button>
+          <button class="filter" onclick="filterWorkers('Designer', this)">Designers</button>
+          <button class="filter" onclick="filterWorkers('Social Media', this)">Social Media</button>
+          <button class="filter" onclick="filterWorkers('Developer', this)">Developers</button>
+        </div>
+        <div id="workers" class="worker-grid"></div>
+      </section>
+
+      <section id="messages" class="page">
+        <div class="section-head"><div><p class="eyebrow">INBOX</p><h2>Messages</h2></div></div>
+        <div class="empty-card">
+          <div class="empty-icon">✦</div>
+          <h3>Your conversations will show here</h3>
+          <p>Find a worker and start a chat about your next project.</p>
+          <button class="primary" onclick="showPage('discover')">Discover talent</button>
+        </div>
+      </section>
+
+      <section id="profile" class="page">
+        <div class="profile-card">
+          <div class="profile-avatar">TK</div>
+          <div><p class="eyebrow">YOUR PROFILE</p><h2>Welcome back</h2><p class="muted">Choose a role below to finish setting up your account.</p></div>
+        </div>
+        <div class="role-grid">
+          <button class="role-card" onclick="openSignup('buyer')"><span>◈</span><h3>I'm a buyer</h3><p>Hire editors, clippers, designers and other online talent.</p></button>
+          <button class="role-card" onclick="openSignup('worker')"><span>✦</span><h3>I'm a worker</h3><p>Show your work, get discovered and find paid projects.</p></button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="mobile-nav">
+      <button onclick="showPage('home')">⌂<small>Home</small></button>
+      <button onclick="showPage('discover')">⌕<small>Discover</small></button>
+      <button onclick="showPage('messages')">◌<small>Messages</small></button>
+      <button onclick="showPage('profile')">○<small>Profile</small></button>
+    </nav>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <button class="close" onclick="closeModal()">×</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

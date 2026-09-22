@@ -1,0 +1,9 @@
+{
+  "name": "Collably — Hire Your Online Team",
+  "short_name": "Collably",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "icons": []
+}
