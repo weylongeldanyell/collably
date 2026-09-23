@@ -1,35 +1,274 @@
-(()=>{const C=window.COLLABLY_CONFIG||{},live=!!(window.supabase&&C.SUPABASE_URL&&C.SUPABASE_PUBLISHABLE_KEY),demo=C.DEMO_MODE!==false||!live,db=live?supabase.createClient(C.SUPABASE_URL,C.SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
-const K="collably03",S="collably03session",$=s=>document.querySelector(s),uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random(),iso=()=>new Date().toISOString(),ini=n=>(n||"C").split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase(),esc=s=>String(s??"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[x])),ago=d=>{let m=Math.floor((Date.now()-new Date(d))/60000);return m<1?"now":m<60?m+"m":m<1440?Math.floor(m/60)+"h":Math.floor(m/1440)+"d"},money=n=>n==null?"Rate on request":"$"+Number(n).toLocaleString();
-const seed={profiles:[{id:"u1",role:"worker",username:"miachen",full_name:"Mia Chen",bio:"Video editor focused on clean storytelling, pacing and short-form content.",skills:["Video Editing","Short-form","YouTube"],tools:["Premiere Pro","After Effects"],hourly_rate:35,rating:4.9},{id:"u2",role:"worker",username:"jayclips",full_name:"Jay Williams",bio:"Twitch clipper turning long streams into punchy moments.",skills:["Clipping","Twitch","Gaming"],tools:["CapCut","Premiere Pro"],hourly_rate:18,rating:5},{id:"u3",role:"worker",username:"avapatel",full_name:"Ava Patel",bio:"Designer making thumbnails and brand systems.",skills:["Design","Thumbnails","Branding"],tools:["Figma","Photoshop"],hourly_rate:30,rating:4.8},{id:"u4",role:"worker",username:"noahsocial",full_name:"Noah Smith",bio:"Social media manager for creator brands.",skills:["Social Media","Strategy","Posting"],tools:["Notion","Canva"],hourly_rate:25,rating:4.9},{id:"u5",role:"worker",username:"lucabrown",full_name:"Luca Brown",bio:"Developer building fast creator tools and web apps.",skills:["Development","React","APIs"],tools:["React","Node.js"],hourly_rate:45,rating:5},{id:"buyer",role:"buyer",username:"creatorhub",full_name:"Creator Hub",bio:"A demo creator account for testing hiring flows.",skills:[],tools:[]}],portfolio:[{id:"p1",user_id:"u1",title:"Gaming highlight reel",description:"Fast-paced YouTube edit."},{id:"p2",user_id:"u2",title:"Twitch clip pack",description:"Short-form clips from a live stream."},{id:"p3",user_id:"u3",title:"Creator thumbnail system",description:"A consistent thumbnail direction."}],jobs:[{id:"j1",buyer_id:"buyer",title:"YouTube Shorts Editor",description:"Turn gaming videos into 8–12 engaging Shorts each week.",budget_min:300,budget_max:500,budget_type:"project",skill:"Video Editing",status:"open",created_at:iso()},{id:"j2",buyer_id:"buyer",title:"Need Twitch Clipper",description:"Find strong moments from gaming streams and turn them into clips.",budget_min:20,budget_max:30,budget_type:"hour",skill:"Clipping",status:"open",created_at:iso()},{id:"j3",buyer_id:"buyer",title:"10 YouTube Thumbnails",description:"Create ten thumbnails with a consistent style.",budget_min:250,budget_max:250,budget_type:"project",skill:"Design",status:"open",created_at:iso()}],applications:[],conversations:[],messages:[],notifications:[]};
-let state=JSON.parse(localStorage.getItem(K)||JSON.stringify(seed)),user=null,page=location.hash.slice(1)||"home",q="",selected=null;
-function save(){localStorage.setItem(K,JSON.stringify(state))}function toast(t,err=false){let x=document.createElement("div");x.className="toast"+(err?" error":"");x.textContent=t;$("#toast").append(x);setTimeout(()=>x.remove(),3000)}function profile(id){return state.profiles.find(p=>p.id===id)}function workers(){let z=q.toLowerCase();return state.profiles.filter(p=>p.role==="worker"&&(!z||[p.full_name,p.username,p.bio,...p.skills,...p.tools].join(" ").toLowerCase().includes(z)))}function nav(p){page=p;location.hash=p;render();scrollTo(0,0)}
-function workerCard(p){return `<article class="card worker"><div class="cover"></div><div class="avatar">${ini(p.full_name)}</div><h3>${esc(p.full_name)}</h3><small class="muted">@${esc(p.username)}</small><p>${esc(p.bio)}</p><div class="pills">${(p.skills||[]).slice(0,3).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}</div><div class="workerfoot"><b>${money(p.hourly_rate)}<small class="muted">/hr</small></b><span class="rating">★ ${p.rating||"New"}</span></div><div class="actions" style="margin-top:13px"><button class="secondary" data-profile="${p.id}">View profile</button><button class="primary" data-msg="${p.id}">Message</button></div></article>`}
-function workCard(x){return `<article class="card work"><div class="workimg">${x.media_url?`<img src="${esc(x.media_url)}">`:`<span>Portfolio work</span>`}</div><div class="workbody"><h3>${esc(x.title)}</h3><p>${esc(x.description||"")}</p></div></article>`}
-function jobCard(j){let p=profile(j.buyer_id),applied=state.applications.some(a=>a.job_id===j.id&&a.worker_id===user.id),can=user.role==="worker"&&j.status==="open"&&!applied;return `<article class="card job"><div class="jobtop"><div><h3>${esc(j.title)}</h3><p>${esc(p?.full_name||"Creator")} · ${ago(j.created_at)}</p></div><span class="pill">${esc(j.status)}</span></div><p>${esc(j.description)}</p><div class="jobmeta"><span class="pill">${esc(j.skill)}</span><span class="pill">${money(j.budget_min)}${j.budget_max!==j.budget_min?"–"+money(j.budget_max):""} / ${esc(j.budget_type)}</span></div><div class="jobactions">${can?`<button class="primary" data-apply="${j.id}">Apply</button>`:applied?`<span class="pill">Applied</span>`:""}<button class="secondary" data-job="${j.id}">Details</button></div></article>`}
-function shell(){ $("#app").classList.toggle("hide",!user);$("#auth").classList.toggle("hide",!!user);if(user){$("#ava").textContent=ini(user.full_name);$("#connection").textContent=live?"Connected to Supabase":"Demo mode";document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page))}}
-function home(){let w=workers().slice(0,4),j=state.jobs.filter(x=>x.status==="open").slice(0,3);return `<div class="card hero"><div><span class="pill">v0.3 · ${live?"Live backend":"Demo mode"}</span><h1>Find the people who make your ideas happen.</h1><p>Discover online talent, show your work, post jobs and message people directly.</p><div class="actions"><button class="primary" data-page="discover">Find talent</button><button class="secondary" data-page="jobs">Browse jobs</button></div></div><div class="metric"><b>${state.profiles.filter(x=>x.role==="worker").length}</b><span class="muted">workers in this demo</span></div></div><section class="section"><div class="sectionhead"><h2>People worth discovering</h2><button class="ghost" data-page="discover">See all</button></div><div class="grid g4">${w.map(workerCard).join("")}</div></section><section class="section"><div class="sectionhead"><h2>Latest work</h2></div><div class="grid g3">${state.portfolio.slice(0,3).map(workCard).join("")}</div></section><section class="section"><div class="sectionhead"><h2>Open opportunities</h2><button class="ghost" data-page="jobs">View jobs</button></div><div class="grid">${j.map(jobCard).join("")}</div></section>`}
-function discover(){let w=workers();return `<div class="head"><div><h1>Discover</h1><p>Search by name, skill, profession or tool.</p></div><button class="secondary" data-edit>My profile</button></div><div class="card pad" style="margin-bottom:17px"><label class="muted">Search<input id="ds" value="${esc(q)}" placeholder="e.g. video editing, Figma, Twitch"></label></div><div class="grid g3">${w.map(workerCard).join("")||`<div class="card empty full"><b>No matches</b>Try another search.</div>`}</div>`}
-function jobs(){return `<div class="head"><div><h1>Jobs</h1><p>Find projects or hire people for your next idea.</p></div><div class="actions">${user.role==="buyer"?`<button class="primary" data-post>Post a job</button>`:""}<button class="secondary" data-apps>My applications</button></div></div><div class="grid">${state.jobs.filter(x=>x.status==="open").map(jobCard).join("")||`<div class="card empty"><b>No open jobs</b>Check back later.</div>`}</div>`}
-function messages(){let cs=state.conversations.filter(c=>c.members.includes(user.id));if(!selected&&cs[0])selected=cs[0].id;let c=cs.find(x=>x.id===selected),other=c?.members.find(x=>x!==user.id),op=profile(other),ms=state.messages.filter(m=>m.conversation_id===c?.id).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));return `<div class="head"><div><h1>Messages</h1><p>Talk directly with people you're working with.</p></div></div><div class="card messages"><div class="threads">${cs.map(x=>{let o=profile(x.members.find(y=>y!==user.id)),last=state.messages.filter(m=>m.conversation_id===x.id).at(-1);return `<button class="thread ${x.id===selected?"active":""}" data-thread="${x.id}"><div class="avatar">${ini(o?.full_name)}</div><div><b>${esc(o?.full_name||"User")}</b><p>${esc(last?.body||"Start a conversation")}</p></div></button>`}).join("")||`<div class="empty">Message someone from Discover to start.</div>`}</div><div class="chat">${c?`<div class="chathead"><div class="user"><div class="avatar">${ini(op?.full_name)}</div><div><b>${esc(op?.full_name)}</b><small>@${esc(op?.username||"")}</small></div></div></div><div class="chatbody" id="chat">${ms.map(m=>`<div class="bubble ${m.sender_id===user.id?"mine":""}">${esc(m.body)}</div>`).join("")||`<div class="empty">Say hello.</div>`}</div><form class="compose" id="send"><input id="mi" maxlength="5000" placeholder="Write a message..."><button class="primary">Send</button></form>`:`<div class="empty" style="margin:auto"><b>No conversations yet</b>Message a worker to start.</div>`}</div></div>`}
-function profilePage(){let items=state.portfolio.filter(x=>x.user_id===user.id),myj=state.jobs.filter(x=>x.buyer_id===user.id),apps=state.applications.filter(x=>x.worker_id===user.id);return `<div class="card profilehead"><div class="avatar big">${ini(user.full_name)}</div><div><h1>${esc(user.full_name)}</h1><p>@${esc(user.username)} · ${esc(user.role)}</p><p>${esc(user.bio||"Add a bio to tell people what you do.")}</p><div class="stats"><div><b>${items.length}</b><small>Portfolio</small></div><div><b>${user.role==="worker"?(user.rating||"New"):myj.length}</b><small>${user.role==="worker"?"Rating":"Jobs"}</small></div><div><b>${user.role==="worker"?apps.length:state.applications.filter(a=>myj.some(j=>j.id===a.job_id)).length}</b><small>Applications</small></div></div></div><div class="actions"><button class="secondary" data-edit>Edit profile</button>${user.role==="worker"?`<button class="primary" data-portfolio>Add work</button>`:`<button class="primary" data-post>Post job</button>`}</div></div><section class="section"><div class="sectionhead"><h2>Skills & tools</h2></div><div class="card pad"><div class="pills">${[...(user.skills||[]),...(user.tools||[])].map(x=>`<span class="pill">${esc(x)}</span>`).join("")||`<span class="muted">None yet.</span>`}</div>${user.role==="worker"?`<p><b>${money(user.hourly_rate)}</b> <span class="muted">/ hour</span></p>`:""}</div></section><section class="section"><div class="sectionhead"><h2>Portfolio</h2></div><div class="grid g3">${items.map(workCard).join("")||`<div class="card empty full"><b>No portfolio yet</b>Add examples of your work.</div>`}</div></section>`}
-function notes(){let ns=state.notifications.filter(n=>n.user_id===user.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));return `<div class="head"><div><h1>Notifications</h1><p>Updates about your activity.</p></div><button class="secondary" data-read>Mark all read</button></div><div class="card">${ns.map(n=>`<div class="notification ${n.read?"":"unread"}"><div class="avatar">♡</div><div><b>${esc(n.title)}</b><p class="muted">${esc(n.body)}</p><small class="muted">${ago(n.created_at)}</small></div></div>`).join("")||`<div class="empty">You're all caught up.</div>`}</div>`}
-function settings(){return `<div class="head"><div><h1>Settings</h1><p>Manage your Collably experience.</p></div></div><div class="card pad"><div class="setting"><div><b>Account type</b><p>${esc(user.role)} account</p></div><span class="pill">${esc(user.role)}</span></div><div class="setting"><div><b>Backend</b><p>${live?"Supabase connected":"Demo mode — browser persistence"}</p></div></div><div class="setting"><div><b>Email notifications</b><p>Demo preference for the interface.</p></div><button class="switch on" data-switch></button></div><div class="setting"><div><b>Log out</b><p>End your session.</p></div><button class="danger" id="logout2">Log out</button></div></div>`}
-function render(){shell();if(!user)return;let f={home,discover,jobs,messages,profile:profilePage,notifications:notes,settings};$("#main").innerHTML=(f[page]||home)();let unread=state.notifications.some(n=>n.user_id===user.id&&!n.read);$("#dot").classList.toggle("hide",!unread);$("#ds")?.addEventListener("input",e=>{q=e.target.value;render();$("#ds")?.focus();});$("#send")?.addEventListener("submit",async e=>{e.preventDefault();let body=$("#mi").value.trim();if(!body||!selected)return;try{await send(body)}catch(x){toast(x.message,true)}});$("#chat")?.scrollTo(0,$("#chat").scrollHeight);$("#logout2")?.addEventListener("click",logout)}
-async function load(){if(!live){let sid=localStorage.getItem(S);if(sid)user=profile(sid);return}let {data}=await db.auth.getSession();if(data.session){user=await getRemoteProfile(data.session.user);await remoteState()}}
-async function getRemoteProfile(u){let {data,error}=await db.from("profiles").select("*").eq("id",u.id).maybeSingle();if(error)throw error;if(data)return data;let m=u.user_metadata||{},p={id:u.id,role:m.role||"worker",username:m.username||u.id.slice(0,8),full_name:m.full_name||"New user",bio:"",skills:[],tools:[],hourly_rate:25};let r=await db.from("profiles").insert(p).select().single();if(r.error)throw r.error;return r.data}
-async function remoteState(){for(let t of ["profiles","portfolio_items","jobs","applications","messages","notifications"]){let {data,error}=await db.from(t).select("*");if(error)throw error;state[t==="portfolio_items"?"portfolio":t]=data||[]}let {data:cm,error:e}=await db.from("conversation_members").select("*").eq("user_id",user.id);if(e)throw e;let ids=(cm||[]).map(x=>x.conversation_id);if(ids.length){let a=await db.from("conversations").select("*").in("id",ids);if(a.error)throw a.error;let b=await db.from("conversation_members").select("*").in("conversation_id",ids);if(b.error)throw b.error;state.conversations=(a.data||[]).map(c=>({...c,members:(b.data||[]).filter(x=>x.conversation_id===c.id).map(x=>x.user_id)}))}else state.conversations=[]}
-async function login(){if(!live){user=state.profiles.find(p=>p.id==="demo-user");if(!user){user={id:"demo-user",role:"worker",username:"demo_user",full_name:"Demo User",bio:"Demo account for testing Collably.",skills:["Video Editing","Design"],tools:["Premiere Pro","Figma"],hourly_rate:25,rating:5};state.profiles.push(user);state.notifications.push({id:uid(),user_id:user.id,title:"Welcome to Collably",body:"Explore workers, jobs and messages.",read:false,created_at:iso()});save()}localStorage.setItem(S,user.id);nav("home");return}let {data,error}=await db.auth.signInWithPassword({email:$("#le").value.trim(),password:$("#lp").value});if(error)throw error;user=await getRemoteProfile(data.user);await remoteState();nav("home")}
-async function signup(){let role=$(".role.active").dataset.role,name=$("#sn").value.trim(),username=$("#su").value.trim().toLowerCase(),email=$("#se").value.trim(),password=$("#sp").value;if(!/^[a-z0-9_]{3,24}$/.test(username))throw Error("Username must use 3–24 letters, numbers or underscores.");if(!live){if(state.profiles.some(p=>p.username===username))throw Error("Username already exists in demo mode.");user={id:uid(),role,username,full_name:name,bio:"",skills:[],tools:[],hourly_rate:role==="worker"?25:null,rating:null};state.profiles.push(user);state.notifications.push({id:uid(),user_id:user.id,title:"Welcome to Collably",body:"Complete your profile to get started.",read:false,created_at:iso()});save();localStorage.setItem(S,user.id);nav("home");return}let {data,error}=await db.auth.signUp({email,password,options:{data:{role,full_name:name,username}}});if(error)throw error;if(data.session){user=await getRemoteProfile(data.user);await remoteState();nav("home")}else{toast("Account created. Check your email, then log in.")}}
-async function logout(){if(live)await db.auth.signOut();user=null;localStorage.removeItem(S);render()}
-async function startMsg(other){if(other===user.id)return;if(!live){let c=state.conversations.find(c=>c.members.includes(user.id)&&c.members.includes(other));if(!c){c={id:uid(),members:[user.id,other],created_at:iso()};state.conversations.push(c);save()}selected=c.id;nav("messages");return}let {data:mine,error}=await db.from("conversation_members").select("conversation_id").eq("user_id",user.id);if(error)throw error;let ids=(mine||[]).map(x=>x.conversation_id);if(ids.length){let o=await db.from("conversation_members").select("conversation_id").eq("user_id",other).in("conversation_id",ids);if(o.error)throw o.error;if(o.data?.[0]){selected=o.data[0].conversation_id;nav("messages");return}}let c=await db.from("conversations").insert({}).select().single();if(c.error)throw c.error;let m=await db.from("conversation_members").insert([{conversation_id:c.data.id,user_id:user.id},{conversation_id:c.data.id,user_id:other}]);if(m.error)throw m.error;selected=c.data.id;await remoteState();nav("messages")}
-async function send(body){if(live){let {error}=await db.from("messages").insert({conversation_id:selected,sender_id:user.id,body});if(error)throw error;await remoteState()}else{state.messages.push({id:uid(),conversation_id:selected,sender_id:user.id,body,created_at:iso()});save()}render()}
-function modal(title,html){$("#modal").innerHTML=`<div class="modalback"><div class="modal"><div class="modalhead"><h2>${esc(title)}</h2><button class="close" data-close>×</button></div><div class="modalbody">${html}</div></div></div>`}
-function edit(){modal("Edit profile",`<form id="editform" class="formgrid"><label>Full name<input id="en" value="${esc(user.full_name)}" required></label><label>Username<input id="eu" value="${esc(user.username)}" required></label><label class="full">Bio<textarea id="eb">${esc(user.bio||"")}</textarea></label>${user.role==="worker"?`<label>Hourly rate<input id="er" type="number" min="0" value="${user.hourly_rate??""}"></label>`:""}<label>Skills<input id="esk" value="${esc((user.skills||[]).join(", "))}"></label><label>Tools<input id="eto" value="${esc((user.tools||[]).join(", "))}"></label><div class="full formactions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`);$("#editform").onsubmit=async e=>{e.preventDefault();let p={full_name:$("#en").value.trim(),username:$("#eu").value.trim().toLowerCase(),bio:$("#eb").value.trim(),skills:$("#esk").value.split(",").map(x=>x.trim()).filter(Boolean),tools:$("#eto").value.split(",").map(x=>x.trim()).filter(Boolean)};if(user.role==="worker")p.hourly_rate=Number($("#er").value)||null;try{if(live){let r=await db.from("profiles").update(p).eq("id",user.id).select().single();if(r.error)throw r.error;user=r.data;await remoteState()}else{Object.assign(user,p);let i=state.profiles.findIndex(x=>x.id===user.id);state.profiles[i]={...state.profiles[i],...p};save()}$("#modal").innerHTML="";toast("Profile updated");render()}catch(x){toast(x.message,true)}}}
-function post(){modal("Post a job",`<form id="jobform" class="formgrid"><label class="full">Title<input id="jt" required maxlength="80"></label><label>Skill<input id="js" required placeholder="Video Editing"></label><label>Budget type<select id="jb"><option>project</option><option>hour</option><option>month</option></select></label><label>Min budget<input id="jmin" type="number" min="0" required></label><label>Max budget<input id="jmax" type="number" min="0"></label><label class="full">Description<textarea id="jd" required maxlength="2000"></textarea></label><div class="full formactions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Publish</button></div></form>`);$("#jobform").onsubmit=async e=>{e.preventDefault();let j={buyer_id:user.id,title:$("#jt").value.trim(),skill:$("#js").value.trim(),budget_type:$("#jb").value,budget_min:Number($("#jmin").value),budget_max:Number($("#jmax").value)||Number($("#jmin").value),description:$("#jd").value.trim(),status:"open",created_at:iso()};try{if(live){let r=await db.from("jobs").insert(j).select().single();if(r.error)throw r.error;j=r.data}else{j.id=uid();state.jobs.unshift(j);save()}$("#modal").innerHTML="";toast("Job published");nav("jobs")}catch(x){toast(x.message,true)}}}
-function apply(id){modal("Apply for this job",`<form id="applyform"><label>Message<textarea id="am" required maxlength="1500" placeholder="Tell the buyer why you're a good fit."></textarea></label><div class="formactions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Send application</button></div></form>`);$("#applyform").onsubmit=async e=>{e.preventDefault();let a={job_id:id,worker_id:user.id,message:$("#am").value.trim(),status:"pending",created_at:iso()};try{if(live){let r=await db.from("applications").insert(a).select().single();if(r.error)throw r.error;state.applications.push(r.data)}else{a.id=uid();state.applications.push(a);save()}$("#modal").innerHTML="";toast("Application sent");render()}catch(x){toast(x.message,true)}}}
-function portfolio(){modal("Add portfolio work",`<form id="pf" class="formgrid"><label class="full">Title<input id="pt" required></label><label class="full">Description<textarea id="pd"></textarea></label><label class="full">Image or video<input id="file" type="file" accept="image/*,video/*"></label><p class="muted full">Live mode uploads to Supabase Storage. Demo mode stores image previews locally.</p><div class="full formactions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Add work</button></div></form>`);$("#pf").onsubmit=async e=>{e.preventDefault();let f=$("#file").files[0],url="",type=f?.type?.startsWith("video/")?"video":"image";try{if(live&&f){let safe=f.name.replace(/[^a-z0-9._-]/gi,"-");let path=`${user.id}/${Date.now()}-${safe}`;let r=await db.storage.from("portfolio").upload(path,f,{upsert:false,contentType:f.type});if(r.error)throw r.error;url=db.storage.from("portfolio").getPublicUrl(path).data.publicUrl}else if(f&&f.type.startsWith("image/")){if(f.size>1200000)throw Error("Demo images must be under 1.2 MB.");url=await new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}let x={user_id:user.id,title:$("#pt").value.trim(),description:$("#pd").value.trim(),media_url:url,media_type:type,created_at:iso()};if(live){let r=await db.from("portfolio_items").insert(x).select().single();if(r.error)throw r.error;x=r.data}else{x.id=uid();state.portfolio.unshift(x);save()}$("#modal").innerHTML="";toast("Portfolio item added");render()}catch(x){toast(x.message,true)}}}
-function viewProfile(id){let p=profile(id),works=state.portfolio.filter(x=>x.user_id===id);modal(p.full_name,`<div class="user"><div class="avatar big">${ini(p.full_name)}</div><div><b>@${esc(p.username)}</b><div class="rating">★ ${p.rating||"New"}</div></div></div><p class="muted" style="line-height:1.7">${esc(p.bio||"No bio yet.")}</p><div class="pills">${[...(p.skills||[]),...(p.tools||[])].map(x=>`<span class="pill">${esc(x)}</span>`).join("")}</div><section class="section"><div class="sectionhead"><h2>Portfolio</h2></div><div class="grid g2">${works.map(workCard).join("")||`<div class="empty">No work yet.</div>`}</div></section><div class="formactions"><button class="ghost" data-close>Close</button><button class="primary" data-modalmsg="${id}">Message</button></div>`)}
-function viewJob(id){let j=state.jobs.find(x=>x.id===id),p=profile(j.buyer_id),a=state.applications.filter(x=>x.job_id===id);modal(j.title,`<p class="muted">${esc(p?.full_name||"Creator")} · ${ago(j.created_at)}</p><p style="line-height:1.7">${esc(j.description)}</p><div class="pills"><span class="pill">${esc(j.skill)}</span><span class="pill">${money(j.budget_min)}${j.budget_max!==j.budget_min?"–"+money(j.budget_max):""} / ${esc(j.budget_type)}</span></div>${j.buyer_id===user.id?`<section class="section"><b>${a.length} application${a.length===1?"":"s"}</b>${a.map(x=>{let w=profile(x.worker_id);return `<div class="card pad" style="margin-top:9px"><div class="user"><div class="avatar">${ini(w?.full_name)}</div><div><b>${esc(w?.full_name||"Worker")}</b><small>${esc(x.message)}</small></div></div></div>`}).join("")||`<div class="empty">No applications yet.</div>`}</section>`:""}<div class="formactions"><button class="ghost" data-close>Close</button>${user.role==="worker"&&!state.applications.some(x=>x.job_id===id&&x.worker_id===user.id)?`<button class="primary" data-apply="${id}">Apply</button>`:""}</div>`)}
-document.addEventListener("click",async e=>{let p=e.target.closest("[data-page]")?.dataset.page;if(p){nav(p);return}if(e.target.closest("[data-profile]")){viewProfile(e.target.closest("[data-profile]").dataset.profile);return}if(e.target.closest("[data-msg]")){try{await startMsg(e.target.closest("[data-msg]").dataset.msg)}catch(x){toast(x.message,true)}return}if(e.target.closest("[data-modalmsg]")){let id=e.target.closest("[data-modalmsg]").dataset.modalmsg;$("#modal").innerHTML="";try{await startMsg(id)}catch(x){toast(x.message,true)}return}if(e.target.closest("[data-job]")){viewJob(e.target.closest("[data-job]").dataset.job);return}if(e.target.closest("[data-apply]")){apply(e.target.closest("[data-apply]").dataset.apply);return}if(e.target.closest("[data-edit]")){edit();return}if(e.target.closest("[data-post]")){if(user.role!=="buyer")return toast("Only buyers can post jobs.",true);post();return}if(e.target.closest("[data-portfolio]")){portfolio();return}if(e.target.closest("[data-thread]")){selected=e.target.closest("[data-thread]").dataset.thread;render();return}if(e.target.closest("[data-close]")){$("#modal").innerHTML="";return}if(e.target.closest("[data-read]")){if(live){let r=await db.from("notifications").update({read:true}).eq("user_id",user.id);if(r.error)toast(r.error.message,true)}state.notifications.forEach(n=>{if(n.user_id===user.id)n.read=true});save();render();return}if(e.target.closest("[data-apps]")){let a=state.applications.filter(x=>x.worker_id===user.id);modal("My applications",a.map(x=>{let j=state.jobs.find(z=>z.id===x.job_id);return `<div class="card pad" style="margin-bottom:9px"><b>${esc(j?.title||"Job")}</b><p class="muted">${esc(x.message)}</p><span class="pill">${esc(x.status)}</span></div>`}).join("")||`<div class="empty">No applications yet.</div>`);return}if(e.target.closest("[data-switch]"))e.target.closest("button").classList.toggle("on")});
-$("#search").oninput=e=>{q=e.target.value;nav("discover")};$("#logout").onclick=logout;$("#authx").onclick=()=>{};document.querySelectorAll("[data-auth]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-auth]").forEach(x=>x.classList.toggle("active",x===b));$("#login").classList.toggle("hide",b.dataset.auth!=="login");$("#signup").classList.toggle("hide",b.dataset.auth!=="signup")});document.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-role]").forEach(x=>x.classList.remove("active"));b.classList.add("active")});$("#login").onsubmit=async e=>{e.preventDefault();try{await login()}catch(x){toast(x.message,true)}};$("#demo").onclick=async()=>{try{await login()}catch(x){toast(x.message,true)}};$("#signup").onsubmit=async e=>{e.preventDefault();try{await signup()}catch(x){toast(x.message,true)}};
-(async()=>{try{await load();render();if(live){db.auth.onAuthStateChange(async(ev,s)=>{if(ev==="SIGNED_OUT"){user=null;render()}else if(s&&!user){user=await getRemoteProfile(s.user);await remoteState();render()}});db.channel("collably-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},p=>{if(!state.messages.some(m=>m.id===p.new.id)){state.messages.push(p.new);if(page==="messages")render()}}).subscribe()}}catch(x){console.error(x);toast(x.message,true)}})();})();
+(() => {
+"use strict";
+const cfg = window.COLLABLY_CONFIG || {};
+const hasSupabase = !!(window.supabase && cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY);
+const demoMode = cfg.DEMO_MODE !== false || !hasSupabase;
+const sb = hasSupabase ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+}) : null;
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const initials = n => (n||"C").trim().split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();
+const money = n => n == null || n === "" ? "Rate on request" : "$"+Number(n).toLocaleString();
+const fmt = d => d ? new Date(d).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}) : "";
+const ago = d => { if(!d) return ""; const m=Math.floor((Date.now()-new Date(d))/60000); return m<1?"now":m<60?m+"m":m<1440?Math.floor(m/60)+"h":Math.floor(m/1440)+"d"; };
+const toast = (msg,type="") => { const el=document.createElement("div"); el.className="toast "+type; el.textContent=msg; $("#toast").appendChild(el); setTimeout(()=>el.remove(),3200); };
+const closeModal = id => $("#"+id)?.classList.add("hidden");
+const openModal = id => $("#"+id)?.classList.remove("hidden");
+
+const DEMO = {
+ user:{id:"demo-user",email:"demo@collably.local"},
+ profile:{id:"demo-user",role:"worker",username:"tkcreator",full_name:"Your Demo Profile",bio:"Creative worker building great content with creators.",skills:["Video Editing","Short-form","YouTube"],tools:["Premiere Pro","CapCut"],hourly_rate:30,rating:5},
+ profiles:[
+  {id:"d1",role:"worker",username:"miachen",full_name:"Mia Chen",bio:"Video editor focused on clean storytelling and short-form content.",skills:["Video Editing","Short-form","YouTube"],tools:["Premiere Pro","After Effects"],hourly_rate:35,rating:4.9},
+  {id:"d2",role:"worker",username:"jayclips",full_name:"Jay Williams",bio:"Twitch clipper turning long streams into punchy moments.",skills:["Clipping","Twitch","Gaming"],tools:["CapCut","Premiere Pro"],hourly_rate:18,rating:5},
+  {id:"d3",role:"worker",username:"avapatel",full_name:"Ava Patel",bio:"Designer making thumbnails and brand systems.",skills:["Design","Thumbnails","Branding"],tools:["Figma","Photoshop"],hourly_rate:30,rating:4.8},
+  {id:"d4",role:"worker",username:"noahsocial",full_name:"Noah Smith",bio:"Social media strategy, posting and creator growth.",skills:["Social Media","TikTok","Strategy"],tools:["Notion","Canva"],hourly_rate:25,rating:4.9},
+  {id:"d5",role:"worker",username:"lucabuilds",full_name:"Luca Brown",bio:"Developer building fast websites and creator tools.",skills:["Development","Web Apps","APIs"],tools:["React","JavaScript"],hourly_rate:45,rating:5}
+ ],
+ jobs:[
+  {id:"dj1",title:"YouTube Shorts Editor",description:"Need someone to turn long gaming videos into high-retention Shorts.",skill:"Video Editing",budget_min:300,budget_max:500,budget_type:"project",status:"open",created_at:new Date().toISOString(),buyer_name:"Gaming creator"},
+  {id:"dj2",title:"Twitch Clipper",description:"Looking for someone to clip 3-5 strong moments per stream.",skill:"Clipping",budget_min:20,budget_max:30,budget_type:"hour",status:"open",created_at:new Date().toISOString(),buyer_name:"Streamer"}
+ ],
+ apps:[],conversations:[],messages:[],portfolio:[]
+};
+
+let state={route:"home",user:null,profile:null,profiles:[],jobs:[],applications:[],conversations:[],messages:[],portfolio:[],notifications:[],selectedConversation:null,loading:false};
+
+function currentUser(){ return state.user; }
+function isDemo(){ return demoMode; }
+
+async function loadSession(){
+  if(isDemo()){
+    state.user=DEMO.user; state.profile=DEMO.profile; state.profiles=DEMO.profiles; state.jobs=DEMO.jobs; state.applications=DEMO.apps; state.conversations=DEMO.conversations; state.messages=DEMO.messages; state.portfolio=DEMO.portfolio;
+    return;
+  }
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){ state.user=session.user; await loadProfile(); await refreshAll(); }
+  sb.auth.onAuthStateChange(async (_event,session)=>{
+    state.user=session?.user||null;
+    if(state.user){ await loadProfile(); await refreshAll(); showApp(); }
+    else { state.profile=null; showAuth(); }
+  });
+}
+
+async function loadProfile(){
+  if(!state.user) return;
+  const {data,error}=await sb.from("profiles").select("*").eq("id",state.user.id).single();
+  if(error){ toast(error.message,"bad"); return; }
+  state.profile=data;
+}
+async function refreshAll(){
+  if(isDemo()) return;
+  const uid=state.user.id;
+  const [p,j,a,c,m,port,n]=await Promise.all([
+    sb.from("profiles").select("*").order("created_at",{ascending:false}),
+    sb.from("jobs").select("*,profiles:buyer_id(full_name,username)").eq("status","open").order("created_at",{ascending:false}),
+    sb.from("applications").select("*,jobs:job_id(*),worker:worker_id(full_name,username)").order("created_at",{ascending:false}),
+    sb.from("conversations").select("*,buyer:buyer_id(full_name,username),worker:worker_id(full_name,username)").or(`buyer_id.eq.${uid},worker_id.eq.${uid}`).order("updated_at",{ascending:false}),
+    sb.from("messages").select("*").order("created_at",{ascending:true}),
+    sb.from("portfolio_items").select("*").order("created_at",{ascending:false}),
+    sb.from("notifications").select("*").eq("user_id",uid).order("created_at",{ascending:false})
+  ]);
+  if(p.error) toast(p.error.message,"bad"); else state.profiles=p.data||[];
+  if(j.error) toast(j.error.message,"bad"); else state.jobs=j.data||[];
+  if(a.error) toast(a.error.message,"bad"); else state.applications=a.data||[];
+  if(c.error) toast(c.error.message,"bad"); else state.conversations=c.data||[];
+  if(m.error) toast(m.error.message,"bad"); else state.messages=m.data||[];
+  if(port.error) toast(port.error.message,"bad"); else state.portfolio=port.data||[];
+  if(n.error) toast(n.error.message,"bad"); else state.notifications=n.data||[];
+}
+
+function showAuth(){ $("#app").classList.add("hidden"); $("#auth").classList.remove("hidden"); $("#loading").classList.add("hidden"); }
+function showApp(){ $("#auth").classList.add("hidden"); $("#app").classList.remove("hidden"); $("#loading").classList.add("hidden"); render(); }
+
+function setAuthTab(tab){
+  $$(".auth-tab").forEach(b=>b.classList.toggle("active",b.dataset.authTab===tab));
+  $("#loginForm").classList.toggle("hidden",tab!=="login"); $("#signupForm").classList.toggle("hidden",tab!=="signup");
+}
+function setRoute(route){
+  const valid=["home","discover","jobs","messages","notifications","profile","settings"];
+  state.route=valid.includes(route)?route:"home"; location.hash=state.route; render();
+}
+function render(){
+  $$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.route===state.route));
+  renderMiniUser();
+  const views={home:renderHome,discover:renderDiscover,jobs:renderJobs,messages:renderMessages,notifications:renderNotifications,profile:renderProfile,settings:renderSettings};
+  $("#view").innerHTML=(views[state.route]||renderHome)();
+  bindView();
+}
+function renderMiniUser(){
+  const p=state.profile; if(!p) return;
+  $("#miniUser").innerHTML=`<div class="mini-user-inner"><div class="avatar avatar-sm">${esc(initials(p.full_name))}</div><div><div class="mini-user-name">${esc(p.full_name)}</div><div class="mini-user-role">${esc(p.role)}</div></div></div>`;
+  $("#topProfile").textContent=initials(p.full_name);
+  const unread=state.notifications.filter(n=>!n.read_at).length;
+  $("#notifBadge").textContent=unread; $("#notifBadge").classList.toggle("hidden",!unread);
+}
+
+function workerCard(p){
+ return `<article class="card worker-card"><div class="worker-top"><div class="avatar">${esc(initials(p.full_name))}</div><div><div class="worker-name">${esc(p.full_name)}</div><div class="handle">@${esc(p.username||"user")} · ${esc(p.role)}</div></div><div class="rate">${money(p.hourly_rate)}<span class="muted">/hr</span></div></div><p class="muted">${esc(p.bio||"No bio yet.")}</p><div class="chips">${(p.skills||[]).slice(0,4).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div><span class="stars">★</span> ${p.rating??"New"} <span class="muted"> · ${p.tools?.length||0} tools</span></div><div class="job-actions"><button class="btn secondary" data-view-worker="${esc(p.id)}">View profile</button>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message</button>`:""}</div></article>`;
+}
+function jobCard(j){
+ const buyer=j.profiles?.full_name||j.buyer_name||"Buyer";
+ const budget=j.budget_min!=null&&j.budget_max!=null?`${money(j.budget_min)}–${money(j.budget_max)}`:money(j.budget_min||j.budget_max);
+ const mine=j.buyer_id===state.user?.id;
+ return `<article class="card job-card"><div class="job-title">${esc(j.title)}</div><div class="job-meta"><span>${esc(buyer)}</span><span>·</span><span>${esc(j.skill)}</span><span>·</span><span>${fmt(j.created_at)}</span></div><p class="muted">${esc(j.description)}</p><div class="job-budget">${budget} <span class="muted">/ ${esc(j.budget_type||"project")}</span></div><div class="job-actions">${mine?`<button class="btn ghost" disabled>Your job</button>`:`<button class="btn primary" data-apply-job="${esc(j.id)}">Apply</button>`}</div></article>`;
+}
+
+function renderHome(){
+ const workers=state.profiles.filter(p=>p.role==="worker").slice(0,3);
+ const jobs=state.jobs.slice(0,3);
+ return `<div class="hero"><div><h1>Build your team without the busywork.</h1><p>Collably connects creators, businesses and skilled online workers — from editors and clippers to designers, social media workers and developers.</p><div class="hero-actions"><button class="btn primary" data-route="discover">Find talent</button><button class="btn ghost" data-route="jobs">Browse jobs</button></div></div></div>
+ <section class="section"><div class="section-title"><h2>People worth discovering</h2><button class="btn ghost" data-route="discover">See all</button></div><div class="grid">${workers.map(workerCard).join("")||`<div class="empty">No workers yet.</div>`}</div></section>
+ <section class="section"><div class="section-title"><h2>Latest jobs</h2><button class="btn ghost" data-route="jobs">View jobs</button></div><div class="grid">${jobs.map(jobCard).join("")||`<div class="empty">No jobs yet.</div>`}</div></section>`;
+}
+function renderDiscover(){
+ const q=($("#globalSearch")?.value||"").trim().toLowerCase();
+ const workers=state.profiles.filter(p=>p.role==="worker" && (!q || [p.full_name,p.username,p.bio,...(p.skills||[]),...(p.tools||[])].join(" ").toLowerCase().includes(q)));
+ return `<div class="page-head"><div><h1>Discover</h1><p>Find people by skill, tool, name or specialty.</p></div></div><div class="grid">${workers.map(workerCard).join("")||`<div class="empty">No workers match “${esc(q)}”.</div>`}</div>`;
+}
+function renderJobs(){
+ const q=($("#globalSearch")?.value||"").trim().toLowerCase();
+ const jobs=state.jobs.filter(j=>!q || [j.title,j.description,j.skill,j.profiles?.full_name].join(" ").toLowerCase().includes(q));
+ return `<div class="page-head"><div><h1>Jobs</h1><p>Find work or hire someone for your next project.</p></div>${state.profile?.role==="buyer"?`<button class="btn primary" id="postJobBtn">＋ Post a job</button>`:""}</div><div class="grid">${jobs.map(jobCard).join("")||`<div class="empty">No open jobs match your search.</div>`}</div>`;
+}
+function renderNotifications(){
+ const ns=state.notifications;
+ return `<div class="page-head"><div><h1>Notifications</h1><p>Updates about applications, messages and activity.</p></div>${ns.length?`<button class="btn ghost" id="readAll">Mark all read</button>`:""}</div>${ns.length?`<div class="card">${ns.map(n=>`<div class="setting-row"><div><strong>${esc(n.title||"Collably update")}</strong><small>${esc(n.body||"")} · ${ago(n.created_at)}</small></div>${n.read_at?`<span class="muted">Read</span>`:`<span class="chip">New</span>`}</div>`).join("")}</div>`:`<div class="empty">You're all caught up.</div>`}`;
+}
+function renderProfile(){
+ const p=state.profile, mine=state.portfolio.filter(x=>x.user_id===p?.id);
+ return `<div class="profile-head"><div class="avatar profile-avatar">${esc(initials(p?.full_name))}</div><div><h1 style="margin:0">${esc(p?.full_name||"Profile")}</h1><div class="handle">@${esc(p?.username||"user")} · ${esc(p?.role||"")}</div><p class="muted">${esc(p?.bio||"Add a bio in Settings.")}</p><div class="chips">${(p?.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div class="profile-stats"><div class="stat"><strong>${mine.length}</strong><span>Portfolio</span></div><div class="stat"><strong>${p?.rating??"New"}</strong><span>Rating</span></div><div class="stat"><strong>${money(p?.hourly_rate)}</strong><span>Hourly</span></div></div></div></div>
+ <section class="section"><div class="section-title"><h2>Portfolio</h2>${p?.role==="worker"?`<button class="btn primary" id="addPortfolioBtn">＋ Add work</button>`:""}</div>${mine.length?`<div class="portfolio-grid">${mine.map(portfolioThumb).join("")}</div>`:`<div class="empty">Your portfolio is empty. Add your first piece of work.</div>`}</section>`;
+}
+function portfolioThumb(x){ return `<div class="portfolio-thumb">${x.media_url?(x.media_type==="video"?`<video src="${esc(x.media_url)}" controls></video>`:`<img src="${esc(x.media_url)}" alt="${esc(x.title)}">`):`<span>${esc(x.title)}</span>`}</div>`; }
+function renderSettings(){
+ const p=state.profile||{};
+ return `<div class="page-head"><div><h1>Settings</h1><p>Keep your Collably profile up to date.</p></div></div>
+ <div class="card"><form id="profileForm" class="form">
+ <div class="two-col"><label>Full name<input id="setName" value="${esc(p.full_name)}" required></label><label>Username<input id="setUsername" value="${esc(p.username)}" pattern="[A-Za-z0-9_]+" required></label></div>
+ <label>Bio<textarea id="setBio" maxlength="500">${esc(p.bio||"")}</textarea></label>
+ <div class="two-col"><label>Hourly rate<input id="setRate" type="number" min="0" step="1" value="${p.hourly_rate??""}"></label><label>Skills<input id="setSkills" value="${esc((p.skills||[]).join(", "))}" placeholder="Video Editing, YouTube, Shorts"></label></div>
+ <label>Tools<input id="setTools" value="${esc((p.tools||[]).join(", "))}" placeholder="Premiere Pro, CapCut"></label>
+ <button class="btn primary" type="submit">Save changes</button>
+ </form></div>
+ <section class="section card"><div class="setting-row"><div><strong>Account type</strong><small>${esc(p.role||"")}</small></div><span class="chip">${demoMode?"Demo mode":"Connected"}</span></div><div class="setting-row"><div><strong>Account email</strong><small>${esc(state.user?.email||"")}</small></div></div></section>`;
+}
+function renderMessages(){
+ const convs=state.conversations;
+ const selected=state.selectedConversation;
+ const c=convs.find(x=>x.id===selected)||convs[0];
+ if(c && !selected) state.selectedConversation=c.id;
+ const people=c?(c.buyer_id===state.user?.id?c.worker:c.buyer):null;
+ const msgs=c?state.messages.filter(m=>m.conversation_id===c.id):[];
+ return `<div class="page-head"><div><h1>Messages</h1><p>Talk directly with people you're working with.</p></div></div>
+ <div class="messages-layout"><div class="conversation-list">${convs.length?convs.map(x=>{const person=x.buyer_id===state.user?.id?x.worker:x.buyer;return `<button class="conversation ${x.id===c?.id?"active":""}" data-conversation="${x.id}"><div class="avatar avatar-sm">${esc(initials(person?.full_name||"U"))}</div><div><strong>${esc(person?.full_name||"Conversation")}</strong><small>${esc(x.last_message||"Start a conversation")}</small></div></button>`}).join(""):`<div class="empty" style="margin:14px">No conversations yet.</div>`}</div>
+ <div class="chat">${c?`<div class="chat-head">${esc(people?.full_name||"Conversation")}</div><div class="chat-body">${msgs.map(m=>`<div class="bubble ${m.sender_id===state.user?.id?"mine":""}">${esc(m.body)}<small>${ago(m.created_at)}</small></div>`).join("")||`<div class="empty">Send the first message.</div>`}</div><form id="messageForm" class="chat-form"><input id="messageInput" placeholder="Write a message…" autocomplete="off" required><button class="btn primary">Send</button></form>`:`<div class="empty" style="margin:auto">Choose a conversation to start chatting.</div>`}</div></div>`;
+}
+
+function bindView(){
+ $$("#view [data-route]").forEach(b=>b.addEventListener("click",()=>setRoute(b.dataset.route)));
+ $("#postJobBtn")?.addEventListener("click",()=>openModal("jobModal"));
+ $("#addPortfolioBtn")?.addEventListener("click",()=>openModal("portfolioModal"));
+ $$("#view [data-view-worker]").forEach(b=>b.addEventListener("click",()=>viewWorker(b.dataset.viewWorker)));
+ $$("#view [data-message-worker]").forEach(b=>b.addEventListener("click",()=>startConversation(b.dataset.messageWorker)));
+ $$("#view [data-apply-job]").forEach(b=>b.addEventListener("click",()=>applyJob(b.dataset.applyJob)));
+ $("#readAll")?.addEventListener("click",markNotificationsRead);
+ $("#profileForm")?.addEventListener("submit",saveProfile);
+ $("#messageForm")?.addEventListener("submit",sendMessage);
+ $$("#view [data-conversation]").forEach(b=>b.addEventListener("click",()=>{state.selectedConversation=b.dataset.conversation;render();}));
+}
+function viewWorker(id){
+ const p=state.profiles.find(x=>x.id===id); if(!p) return;
+ const items=state.portfolio.filter(x=>x.user_id===id);
+ $("#view").innerHTML=`<button class="btn ghost" id="backDiscover">← Back</button><div class="profile-head" style="margin-top:14px"><div class="avatar profile-avatar">${esc(initials(p.full_name))}</div><div><h1 style="margin:0">${esc(p.full_name)}</h1><div class="handle">@${esc(p.username)} · ${esc(p.role)}</div><p class="muted">${esc(p.bio||"")}</p><div class="chips">${(p.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><p><span class="stars">★</span> ${p.rating??"New"} · ${money(p.hourly_rate)}/hr</p>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message ${esc(p.full_name)}</button>`:""}</div></div><section class="section"><div class="section-title"><h2>Portfolio</h2></div>${items.length?`<div class="portfolio-grid">${items.map(portfolioThumb).join("")}</div>`:`<div class="empty">No portfolio items yet.</div>`}</section>`;
+ $("#backDiscover").addEventListener("click",()=>setRoute("discover")); $("#view [data-message-worker]")?.addEventListener("click",()=>startConversation(p.id));
+}
+async function applyJob(jobId){
+ if(state.profile?.role!=="worker"){toast("Only worker accounts can apply to jobs.","bad");return;}
+ if(isDemo()){toast("Demo application created. Connect Supabase for shared applications.","good");return;}
+ const {error}=await sb.from("applications").insert({job_id:jobId,worker_id:state.user.id});
+ if(error){toast(error.message,"bad");return;} toast("Application sent.","good"); await refreshAll(); render();
+}
+async function startConversation(workerId){
+ if(state.profile?.role!=="buyer"){toast("Only buyers can start a worker conversation from Discover.","bad");return;}
+ if(isDemo()){state.conversations.unshift({id:"demo-"+Date.now(),buyer_id:state.user.id,worker_id:workerId,buyer:{full_name:state.profile.full_name},worker:state.profiles.find(x=>x.id===workerId),last_message:"New conversation"});setRoute("messages");return;}
+ let {data,error}=await sb.from("conversations").select("*").eq("buyer_id",state.user.id).eq("worker_id",workerId).maybeSingle();
+ if(error){toast(error.message,"bad");return;}
+ if(!data){({data,error}=await sb.from("conversations").insert({buyer_id:state.user.id,worker_id:workerId}).select().single());}
+ if(error){toast(error.message,"bad");return;}
+ state.selectedConversation=data.id; await refreshAll(); setRoute("messages");
+}
+async function sendMessage(e){
+ e.preventDefault(); const input=$("#messageInput"); const body=input.value.trim(); const c=state.conversations.find(x=>x.id===state.selectedConversation); if(!body||!c)return;
+ if(isDemo()){state.messages.push({id:"m"+Date.now(),conversation_id:c.id,sender_id:state.user.id,body,created_at:new Date().toISOString()});input.value="";render();return;}
+ const {error}=await sb.from("messages").insert({conversation_id:c.id,sender_id:state.user.id,body});
+ if(error){toast(error.message,"bad");return;} input.value=""; await refreshAll(); render();
+}
+async function saveProfile(e){
+ e.preventDefault();
+ const payload={full_name:$("#setName").value.trim(),username:$("#setUsername").value.trim(),bio:$("#setBio").value.trim(),hourly_rate:$("#setRate").value?Number($("#setRate").value):null,skills:$("#setSkills").value.split(",").map(x=>x.trim()).filter(Boolean),tools:$("#setTools").value.split(",").map(x=>x.trim()).filter(Boolean),updated_at:new Date().toISOString()};
+ if(isDemo()){Object.assign(state.profile,payload);toast("Profile saved in demo mode.","good");render();return;}
+ const {data,error}=await sb.from("profiles").update(payload).eq("id",state.user.id).select().single();
+ if(error){toast(error.message,"bad");return;} state.profile=data;toast("Profile updated.","good");render();
+}
+async function createJob(e){
+ e.preventDefault(); if(state.profile?.role!=="buyer"){toast("Only buyer accounts can post jobs.","bad");return;}
+ const payload={title:$("#jobTitle").value.trim(),description:$("#jobDescription").value.trim(),budget_min:$("#jobMin").value?Number($("#jobMin").value):null,budget_max:$("#jobMax").value?Number($("#jobMax").value):null,budget_type:$("#jobType").value,skill:$("#jobSkill").value.trim()};
+ if(payload.budget_min!=null&&payload.budget_max!=null&&payload.budget_max<payload.budget_min){toast("Maximum budget must be at least the minimum.","bad");return;}
+ if(isDemo()){state.jobs.unshift({id:"dj"+Date.now(),...payload,status:"open",created_at:new Date().toISOString(),buyer_name:state.profile.full_name});closeModal("jobModal");e.target.reset();toast("Job posted in demo mode.","good");setRoute("jobs");return;}
+ const {error}=await sb.from("jobs").insert({buyer_id:state.user.id,...payload});
+ if(error){toast(error.message,"bad");return;} closeModal("jobModal");e.target.reset();await refreshAll();toast("Job published.","good");setRoute("jobs");
+}
+async function addPortfolio(e){
+ e.preventDefault(); if(state.profile?.role!=="worker"){toast("Only worker accounts can add portfolio work.","bad");return;}
+ const file=$("#portfolioFile").files[0], title=$("#portfolioTitle").value.trim(), description=$("#portfolioDescription").value.trim();
+ if(!file){toast("Choose an image or video first.","bad");return;}
+ if(file.size>25*1024*1024){toast("Please keep uploads under 25 MB.","bad");return;}
+ if(isDemo()){state.portfolio.unshift({id:"dp"+Date.now(),user_id:state.user.id,title,description,media_url:URL.createObjectURL(file),media_type:file.type.startsWith("video/")?"video":"image",created_at:new Date().toISOString()});closeModal("portfolioModal");e.target.reset();toast("Portfolio item added in demo mode.","good");setRoute("profile");return;}
+ const path=`${state.user.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+ const {error:up}=await sb.storage.from("portfolio").upload(path,file,{upsert:false,contentType:file.type});
+ if(up){toast(up.message,"bad");return;}
+ const {data:urlData}=sb.storage.from("portfolio").getPublicUrl(path);
+ const {error}=await sb.from("portfolio_items").insert({user_id:state.user.id,title,description,media_url:urlData.publicUrl,media_type:file.type.startsWith("video/")?"video":"image"});
+ if(error){toast(error.message,"bad");return;}
+ closeModal("portfolioModal");e.target.reset();await refreshAll();toast("Portfolio item added.","good");setRoute("profile");
+}
+async function markNotificationsRead(){
+ if(isDemo()){state.notifications.forEach(n=>n.read_at=new Date().toISOString());render();return;}
+ await sb.from("notifications").update({read_at:new Date().toISOString()}).eq("user_id",state.user.id).is("read_at",null);await refreshAll();render();
+}
+
+function setup(){
+ $$(".auth-tab").forEach(b=>b.addEventListener("click",()=>setAuthTab(b.dataset.authTab)));
+ $$(".role-card").forEach(b=>b.addEventListener("click",()=>{$$(".role-card").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("#signupRole").value=b.dataset.role;}));
+ $("#closeAuth").addEventListener("click",()=>{ if(state.user) showApp(); });
+ $("#demoBtn").addEventListener("click",()=>{state.user=DEMO.user;state.profile=DEMO.profile;state.profiles=DEMO.profiles;state.jobs=DEMO.jobs;state.applications=DEMO.apps;state.conversations=[];state.messages=[];state.portfolio=[];showApp();toast("Demo mode loaded.","good");});
+ $("#loginForm").addEventListener("submit",async e=>{e.preventDefault();if(demoMode){toast("Demo mode is active. Connect Supabase in config.js for real accounts.","bad");return;}const {error}=await sb.auth.signInWithPassword({email:$("#loginEmail").value,password:$("#loginPassword").value});if(error)toast(error.message,"bad");});
+ $("#signupForm").addEventListener("submit",async e=>{e.preventDefault();if(demoMode){toast("Connect Supabase in config.js to create real accounts.","bad");return;}const name=$("#signupName").value.trim(),username=$("#signupUsername").value.trim(),email=$("#signupEmail").value.trim(),password=$("#signupPassword").value,role=$("#signupRole").value;const {data,error}=await sb.auth.signUp({email,password,options:{data:{full_name:name,username,role}}});if(error){toast(error.message,"bad");return;}if(data.session){toast("Account created.","good");}else{toast("Account created. Check your email to confirm it, then log in.","good");setAuthTab("login");}});
+ $$("#app [data-route]").forEach(b=>b.addEventListener("click",()=>setRoute(b.dataset.route)));
+ $("#topProfile").addEventListener("click",()=>setRoute("profile"));
+ $("#logoutBtn").addEventListener("click",async()=>{if(!isDemo())await sb.auth.signOut();else{state.user=null;state.profile=null;showAuth();setAuthTab("login");}});
+ $("#openCreate").addEventListener("click",()=>openModal("createModal"));
+ $("#createJob").addEventListener("click",()=>{closeModal("createModal");if(state.profile?.role!=="buyer"){toast("Switch to a buyer account to post jobs.","bad");return;}openModal("jobModal");});
+ $("#createPortfolio").addEventListener("click",()=>{closeModal("createModal");if(state.profile?.role!=="worker"){toast("Switch to a worker account to add portfolio work.","bad");return;}openModal("portfolioModal");});
+ $("#jobForm").addEventListener("submit",createJob);$("#portfolioForm").addEventListener("submit",addPortfolio);
+ $$(".close-modal").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
+ $$(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.add("hidden");}));
+ $("#globalSearch").addEventListener("input",()=>{if(state.route!=="discover"&&state.route!=="jobs")return;render();});
+ $("#mobileMenu").addEventListener("click",()=>{$(".sidebar").style.display=$(".sidebar").style.display==="flex"?"none":"flex";});
+ window.addEventListener("hashchange",()=>{const r=location.hash.slice(1);if(r)setRoute(r);});
+}
+async function init(){
+ setup();
+ if(location.hash.slice(1)) state.route=location.hash.slice(1);
+ await loadSession();
+ if(state.user) showApp(); else showAuth();
+ if(!isDemo()){
+   sb.channel("collably-messages").on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},async()=>{await refreshAll();if(state.route==="messages")render();}).subscribe();
+ }
+}
+init();
+})();

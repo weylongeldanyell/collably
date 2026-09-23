@@ -1,6 +1,136 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#090a0f"><title>Collably</title><link rel="stylesheet" href="styles.css"></head><body>
-<div id="toast"></div>
-<section id="auth" class="auth"><div class="authbox"><button class="x" id="authx">×</button><div class="logo"><b>C</b> collably</div><p class="sub">Find talent. Show your work. Build your team.</p><div class="tabs"><button data-auth="login" class="active">Log in</button><button data-auth="signup">Create account</button></div>
-<form id="login" class="form"><label>Email<input id="le" type="email" required></label><label>Password<input id="lp" type="password" required></label><button class="primary">Log in</button><button type="button" class="ghost" id="demo">Try demo mode</button></form>
-<form id="signup" class="form hide"><div class="roles"><button type="button" class="role active" data-role="worker"><b>✦ Worker</b><small>Get discovered and hired</small></button><button type="button" class="role" data-role="buyer"><b>⌁ Buyer</b><small>Find talent and post jobs</small></button></div><label>Full name<input id="sn" required></label><label>Username<input id="su" pattern="[A-Za-z0-9_]+" minlength="3" maxlength="24" required></label><label>Email<input id="se" type="email" required></label><label>Password<input id="sp" type="password" minlength="8" required></label><button class="primary">Create account</button></form><small class="sub">Demo mode saves to this browser. Real accounts need Supabase setup.</small></div></section>
-<div id="app" class="hide"><header><button class="brand" data-page="home"><b>C</b> collably</button><div class="search">⌕<input id="search" placeholder="Search people, skills, tools..."></div><div class="headactions"><button data-page="notifications">♡<i id="dot"></i></button><button class="ava" data-page="profile" id="ava">C</button></div></header><div class="layout"><aside><nav><button data-page="home">⌂ <span>Home</span></button><button data-page="discover">◎ <span>Discover</span></button><button data-page="jobs">▣ <span>Jobs</span></button><button data-page="messages">✉ <span>Messages</span></button><button data-page="notifications">♡ <span>Notifications</span></button><button data-page="profile">◉ <span>Profile</span></button><button data-page="settings">⚙ <span>Settings</span></button></nav><div class="asidebottom"><small id="connection">Demo mode</small><button class="ghost" id="logout">Log out</button></div></aside><main id="main"></main></div><nav class="mobile"><button data-page="home">⌂<small>Home</small></button><button data-page="discover">◎<small>Discover</small></button><button data-page="jobs">▣<small>Jobs</small></button><button data-page="messages">✉<small>Messages</small></button><button data-page="profile">◉<small>Profile</small></button></nav></div><div id="modal"></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="description" content="Collably — find creative talent, build teams, and get work done.">
+<title>Collably — Find talent. Build your team.</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="toast" aria-live="polite"></div>
+
+<div id="loading" class="loading"><div class="spinner"></div><span>Loading Collably…</span></div>
+
+<section id="auth" class="auth hidden">
+  <div class="auth-card">
+    <button class="icon-btn close-auth" id="closeAuth" aria-label="Close">×</button>
+    <div class="brand brand-center"><img src="logo.svg" alt=""> <span>collably</span></div>
+    <p class="auth-tagline">Find talent. Build your team. Get things done.</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-auth-tab="login">Log in</button>
+      <button class="auth-tab" data-auth-tab="signup">Create account</button>
+    </div>
+
+    <form id="loginForm" class="form">
+      <label>Email<input id="loginEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary wide" type="submit">Log in</button>
+      <button class="btn ghost wide" id="demoBtn" type="button">Try demo mode</button>
+      <p class="form-note">Real accounts use Supabase when connected.</p>
+    </form>
+
+    <form id="signupForm" class="form hidden">
+      <div class="role-grid">
+        <button type="button" class="role-card active" data-role="worker">
+          <strong>✦ Worker</strong><span>Show your work and get hired.</span>
+        </button>
+        <button type="button" class="role-card" data-role="buyer">
+          <strong>⌁ Buyer</strong><span>Find talent and build a team.</span>
+        </button>
+      </div>
+      <input id="signupRole" type="hidden" value="worker">
+      <label>Full name<input id="signupName" type="text" autocomplete="name" required></label>
+      <label>Username<input id="signupUsername" type="text" pattern="[A-Za-z0-9_]+" minlength="3" maxlength="24" required></label>
+      <label>Email<input id="signupEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="signupPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+      <button class="btn primary wide" type="submit">Create account</button>
+      <p class="form-note">Use a real email if email confirmation is enabled.</p>
+    </form>
+  </div>
+</section>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <a class="brand" href="#home" data-route="home"><img src="logo.svg" alt=""><span>collably</span></a>
+    <nav class="side-nav" aria-label="Main navigation">
+      <button data-route="home" class="nav-item active"><span>⌂</span><span>Home</span></button>
+      <button data-route="discover" class="nav-item"><span>◌</span><span>Discover</span></button>
+      <button data-route="jobs" class="nav-item"><span>▤</span><span>Jobs</span></button>
+      <button data-route="messages" class="nav-item"><span>◫</span><span>Messages</span><b id="msgBadge" class="badge hidden">0</b></button>
+      <button data-route="notifications" class="nav-item"><span>♢</span><span>Notifications</span><b id="notifBadge" class="badge hidden">0</b></button>
+      <button data-route="profile" class="nav-item"><span>◎</span><span>Profile</span></button>
+      <button data-route="settings" class="nav-item"><span>⚙</span><span>Settings</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button id="openCreate" class="btn primary wide">＋ Create</button>
+      <div class="mini-user" id="miniUser"></div>
+      <button id="logoutBtn" class="logout">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu" id="mobileMenu" aria-label="Menu">☰</button>
+      <div class="search-wrap"><span>⌕</span><input id="globalSearch" placeholder="Search workers, skills, jobs…" autocomplete="off"></div>
+      <div class="top-actions"><button id="topProfile" class="avatar avatar-sm">C</button></div>
+    </header>
+
+    <div id="view" class="view"></div>
+  </main>
+</div>
+
+<div id="createModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="createModal">×</button>
+    <h2>Create something</h2>
+    <p class="muted">Choose what you want to do.</p>
+    <div class="create-grid">
+      <button class="create-choice" id="createJob"><span>▤</span><strong>Post a job</strong><small>Tell workers what you need.</small></button>
+      <button class="create-choice" id="createPortfolio"><span>▧</span><strong>Add portfolio work</strong><small>Show people what you can do.</small></button>
+    </div>
+  </div>
+</div>
+
+<div id="jobModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="jobModal">×</button>
+    <h2>Post a job</h2>
+    <form id="jobForm" class="form">
+      <label>Job title<input id="jobTitle" required maxlength="100" placeholder="e.g. YouTube Shorts editor"></label>
+      <label>Description<textarea id="jobDescription" required maxlength="2000" placeholder="What do you need help with?"></textarea></label>
+      <div class="two-col">
+        <label>Minimum budget<input id="jobMin" type="number" min="0" step="1" placeholder="300"></label>
+        <label>Maximum budget<input id="jobMax" type="number" min="0" step="1" placeholder="500"></label>
+      </div>
+      <div class="two-col">
+        <label>Budget type<select id="jobType"><option value="project">Project</option><option value="hour">Per hour</option><option value="month">Per month</option></select></label>
+        <label>Skill needed<input id="jobSkill" required placeholder="Video Editing"></label>
+      </div>
+      <button class="btn primary wide" type="submit">Publish job</button>
+    </form>
+  </div>
+</div>
+
+<div id="portfolioModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="portfolioModal">×</button>
+    <h2>Add portfolio work</h2>
+    <form id="portfolioForm" class="form">
+      <label>Title<input id="portfolioTitle" required maxlength="100" placeholder="My latest edit"></label>
+      <label>Description<textarea id="portfolioDescription" maxlength="500" placeholder="What did you make?"></textarea></label>
+      <label>Image or video<input id="portfolioFile" type="file" accept="image/*,video/*"></label>
+      <button class="btn primary wide" type="submit">Add to portfolio</button>
+      <p class="form-note">Maximum recommended upload: 25 MB.</p>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
