@@ -116,6 +116,25 @@
   </div>
 </div>
 
+<div id="applicationModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="applicationModal">×</button>
+    <p class="eyebrow">APPLICATION</p>
+    <h2 id="applicationJobTitle">Apply</h2>
+    <form id="applicationForm" class="form">
+      <label>Message to the buyer<textarea id="applicationCover" required maxlength="1200" placeholder="Tell them why you're a good fit, what you can deliver, and when you can start."></textarea></label>
+      <button class="btn primary wide" type="submit">Send application</button>
+    </form>
+  </div>
+</div>
+
+<div id="applicationsModal" class="modal hidden">
+  <div class="modal-card application-modal-card">
+    <button class="icon-btn close-modal" data-close="applicationsModal">×</button>
+    <div id="applicationsContent"></div>
+  </div>
+</div>
+
 <div id="portfolioModal" class="modal hidden">
   <div class="modal-card">
     <button class="icon-btn close-modal" data-close="portfolioModal">×</button>

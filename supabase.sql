@@ -192,3 +192,65 @@ begin
   alter publication supabase_realtime add table public.messages;
 exception when duplicate_object then null;
 end $$;
+
+
+-- v0.5 additions: allow trusted client-side notifications to be created by app actions.
+drop policy if exists "notifications_insert_app" on public.notifications;
+create policy "notifications_insert_app" on public.notifications for insert to authenticated with check (true);
+
+grant select,insert,update on public.notifications to authenticated;
+grant select,insert,update on public.applications to authenticated;
+grant select,insert,update on public.conversations to authenticated;
+grant select,insert on public.messages to authenticated;
+
+-- Keep conversation previews fresh when a message is sent.
+create or replace function public.update_conversation_from_message()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+  update public.conversations
+  set last_message=left(new.body,140), updated_at=now()
+  where id=new.conversation_id;
+  return new;
+end; $$;
+drop trigger if exists messages_update_conversation on public.messages;
+create trigger messages_update_conversation after insert on public.messages
+for each row execute procedure public.update_conversation_from_message();
+
+-- Automatically notify the buyer when a worker applies.
+create or replace function public.notify_job_application()
+returns trigger language plpgsql security definer set search_path=public as $$
+declare buyer uuid; job_title text;
+begin
+  select j.buyer_id,j.title into buyer,job_title from public.jobs j where j.id=new.job_id;
+  insert into public.notifications(user_id,title,body)
+  values(buyer,'New application', 'A worker applied for “'||job_title||'”.');
+  return new;
+end; $$;
+drop trigger if exists applications_notify_buyer on public.applications;
+create trigger applications_notify_buyer after insert on public.applications
+for each row execute procedure public.notify_job_application();
+
+-- Automatically notify a worker when their application is accepted/rejected.
+create or replace function public.notify_application_status()
+returns trigger language plpgsql security definer set search_path=public as $$
+declare job_title text; status_text text;
+begin
+  if new.status is distinct from old.status then
+    select j.title into job_title from public.jobs j where j.id=new.job_id;
+    status_text:=case when new.status='accepted' then 'accepted' else 'updated to '||new.status end;
+    insert into public.notifications(user_id,title,body)
+    values(new.worker_id,'Application update','Your application for “'||job_title||'” was '||status_text||'.');
+  end if;
+  return new;
+end; $$;
+drop trigger if exists applications_notify_worker on public.applications;
+create trigger applications_notify_worker after update of status on public.applications
+for each row execute procedure public.notify_application_status();
+
+-- Realtime feeds for the UI. Duplicate-object errors are ignored.
+do $$
+begin
+  begin alter publication supabase_realtime add table public.notifications; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.jobs; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.applications; exception when duplicate_object then null; end;
+end $$;

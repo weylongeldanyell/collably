@@ -1,4 +1,4 @@
-# Collably v0.4
+# Collably v0.5
 
 A real multi-user-ready marketplace for creators, businesses and online workers.
 
@@ -35,7 +35,16 @@ Never use a `service_role` or secret key in `config.js`.
 - `logo.svg` — Collably logo/favicon
 
 ## Current scope
-The v0.4 foundation supports:
+v0.5 adds a polished marketplace workflow on top of the v0.4 foundation. It includes:
+- application cover messages and duplicate-application prevention
+- buyer application management with accept flow
+- automatic application notifications
+- conversation preview updates and message notifications
+- worker application tracking
+- improved search routing and dashboard stats
+- responsive visual polish and mobile improvements
+
+The foundation supports:
 - buyer and worker accounts
 - persistent profiles
 - searchable workers
