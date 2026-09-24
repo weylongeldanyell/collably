@@ -204,12 +204,47 @@ async function viewApplications(jobId){
  $$("[data-accept-app]").forEach(b=>b.onclick=()=>acceptApplication(b.dataset.acceptApp,job));
 }
 async function acceptApplication(appId,job){
- const {error}=await sb.from('applications').update({status:'accepted'}).eq('id',appId);
- if(error){toast(error.message,'bad');return;}
- const a=state.applications.find(x=>x.id===appId); if(a) a.status='accepted';
- if(a) await notifyUser(a.worker_id,'Application accepted',`Your application for “${job.title}” was accepted.`);
- await sb.from('jobs').update({status:'filled'}).eq('id',job.id);
- closeModal('applicationsModal'); await refreshAll(); toast('Application accepted.','good'); render();
+  if(job.buyer_id!==state.user?.id){toast('Only the job owner can accept applications.','bad');return;}
+  const button=document.querySelector(`[data-accept-app="${appId}"]`);
+  if(button){button.disabled=true;button.textContent='Accepting…';}
+  try{
+    // Confirm the application belongs to this job before changing it.
+    const existing=state.applications.find(x=>x.id===appId && x.job_id===job.id);
+    if(!existing) throw new Error('Application could not be found. Refresh the page and try again.');
+
+    const result=await sb.from('applications')
+      .update({status:'accepted'})
+      .eq('id',appId)
+      .eq('job_id',job.id)
+      .select('id,status,worker_id')
+      .single();
+    if(result.error) throw result.error;
+
+    // Reject the other pending applications for this job.
+    const rejectResult=await sb.from('applications')
+      .update({status:'rejected'})
+      .eq('job_id',job.id)
+      .eq('status','pending')
+      .neq('id',appId);
+    if(rejectResult.error) console.warn('Could not close other applications:',rejectResult.error.message);
+
+    // Close the job. Acceptance has already succeeded if this optional step fails.
+    const jobResult=await sb.from('jobs')
+      .update({status:'filled'})
+      .eq('id',job.id)
+      .eq('buyer_id',state.user.id);
+    if(jobResult.error) console.warn('Application accepted, but job status could not be updated:',jobResult.error.message);
+
+    await notifyUser(existing.worker_id,'Application accepted',`Your application for “${job.title}” was accepted.`);
+    closeModal('applicationsModal');
+    await refreshAll();
+    toast('Application accepted.','good');
+    render();
+  }catch(e){
+    console.error('Accept application error:',e);
+    if(button){button.disabled=false;button.textContent='Accept';}
+    toast(e?.message||'Could not accept the application.','bad');
+  }
 }
 async function notifyUser(userId,title,body){
  if(isDemo()||!userId||userId===state.user?.id)return;
