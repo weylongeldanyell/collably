@@ -59,8 +59,10 @@
     <a class="brand" href="#home" data-route="home"><img src="logo.svg" alt=""><span>collably</span></a>
     <nav class="side-nav" aria-label="Main navigation">
       <button data-route="home" class="nav-item active"><span>⌂</span><span>Home</span></button>
+      <button data-route="dashboard" class="nav-item"><span>◈</span><span>Dashboard</span></button>
       <button data-route="discover" class="nav-item"><span>◌</span><span>Discover</span></button>
       <button data-route="jobs" class="nav-item"><span>▤</span><span>Jobs</span></button>
+      <button data-route="projects" class="nav-item"><span>▣</span><span>Projects</span></button>
       <button data-route="messages" class="nav-item"><span>◫</span><span>Messages</span><b id="msgBadge" class="badge hidden">0</b></button>
       <button data-route="notifications" class="nav-item"><span>♢</span><span>Notifications</span><b id="notifBadge" class="badge hidden">0</b></button>
       <button data-route="profile" class="nav-item"><span>◎</span><span>Profile</span></button>
@@ -145,6 +147,47 @@
       <label>Image or video<input id="portfolioFile" type="file" accept="image/*,video/*"></label>
       <button class="btn primary wide" type="submit">Add to portfolio</button>
       <p class="form-note">Maximum recommended upload: 25 MB.</p>
+    </form>
+  </div>
+</div>
+
+
+<div id="projectModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="projectModal">×</button>
+    <p class="eyebrow">PROJECT</p>
+    <h2 id="projectModalTitle">Project</h2>
+    <form id="projectForm" class="form">
+      <label>Project description<textarea id="projectDescription" maxlength="2500" required></textarea></label>
+      <div class="two-col">
+        <label>Agreed budget<input id="projectBudget" type="number" min="0" step="1"></label>
+        <label>Due date<input id="projectDue" type="date"></label>
+      </div>
+      <label>Status<select id="projectStatus"><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+      <button class="btn primary wide" type="submit">Save project</button>
+    </form>
+  </div>
+</div>
+
+<div id="applicationDetailModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="applicationDetailModal">×</button>
+    <p class="eyebrow">APPLICATION</p>
+    <h2 id="notificationApplicationTitle">Application</h2>
+    <div id="notificationApplicationContent" class="notification-detail"></div>
+  </div>
+</div>
+
+<div id="reviewModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="icon-btn close-modal" data-close="reviewModal">×</button>
+    <p class="eyebrow">REVIEW</p>
+    <h2 id="reviewTitle">Leave a review</h2>
+    <form id="reviewForm" class="form">
+      <input id="reviewProjectId" type="hidden">
+      <label>Rating<select id="reviewRating"><option value="5">★★★★★ — 5</option><option value="4">★★★★☆ — 4</option><option value="3">★★★☆☆ — 3</option><option value="2">★★☆☆☆ — 2</option><option value="1">★☆☆☆☆ — 1</option></select></label>
+      <label>Comment<textarea id="reviewComment" maxlength="1000" placeholder="How was working together?"></textarea></label>
+      <button class="btn primary wide" type="submit">Publish review</button>
     </form>
   </div>
 </div>

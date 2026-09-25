@@ -11,6 +11,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials = n => (n||"C").trim().split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();
+const avatarHtml = (p, cls="") => { const url=p?.avatar_url; return `<div class="avatar ${cls}">${url?`<img src="${esc(url)}" alt="${esc(p?.full_name||"Profile")}" loading="lazy">`:esc(initials(p?.full_name))}</div>`; };
 const money = n => n == null || n === "" ? "Rate on request" : "$"+Number(n).toLocaleString();
 const fmt = d => d ? new Date(d).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}) : "";
 const ago = d => { if(!d) return ""; const m=Math.floor((Date.now()-new Date(d))/60000); return m<1?"now":m<60?m+"m":m<1440?Math.floor(m/60)+"h":Math.floor(m/1440)+"d"; };
@@ -32,17 +33,17 @@ const DEMO = {
   {id:"dj1",title:"YouTube Shorts Editor",description:"Need someone to turn long gaming videos into high-retention Shorts.",skill:"Video Editing",budget_min:300,budget_max:500,budget_type:"project",status:"open",created_at:new Date().toISOString(),buyer_name:"Gaming creator"},
   {id:"dj2",title:"Twitch Clipper",description:"Looking for someone to clip 3-5 strong moments per stream.",skill:"Clipping",budget_min:20,budget_max:30,budget_type:"hour",status:"open",created_at:new Date().toISOString(),buyer_name:"Streamer"}
  ],
- apps:[],conversations:[],messages:[],portfolio:[]
+ apps:[],conversations:[],messages:[],portfolio:[],projects:[],reviews:[],savedJobs:[]
 };
 
-let state={route:"home",user:null,profile:null,profiles:[],jobs:[],applications:[],conversations:[],messages:[],portfolio:[],notifications:[],selectedConversation:null,loading:false};
+let state={route:"home",user:null,profile:null,profiles:[],jobs:[],applications:[],conversations:[],messages:[],portfolio:[],notifications:[],projects:[],reviews:[],savedJobs:[],selectedConversation:null,loading:false};
 
 function currentUser(){ return state.user; }
 function isDemo(){ return demoMode; }
 
 async function loadSession(){
   if(isDemo()){
-    state.user=DEMO.user; state.profile=DEMO.profile; state.profiles=DEMO.profiles; state.jobs=DEMO.jobs; state.applications=DEMO.apps; state.conversations=DEMO.conversations; state.messages=DEMO.messages; state.portfolio=DEMO.portfolio;
+    state.user=DEMO.user; state.profile=DEMO.profile; state.profiles=DEMO.profiles; state.jobs=DEMO.jobs; state.applications=DEMO.apps; state.conversations=DEMO.conversations; state.messages=DEMO.messages; state.portfolio=DEMO.portfolio; state.projects=DEMO.projects||[]; state.reviews=DEMO.reviews||[]; state.savedJobs=DEMO.savedJobs||[];
     return;
   }
   const {data:{session}}=await sb.auth.getSession();
@@ -63,14 +64,17 @@ async function loadProfile(){
 async function refreshAll(){
   if(isDemo()) return;
   const uid=state.user.id;
-  const [p,j,a,c,m,port,n]=await Promise.all([
+  const [p,j,a,c,m,port,n,pr,r,sj]=await Promise.all([
     sb.from("profiles").select("*").order("created_at",{ascending:false}),
     sb.from("jobs").select("*,profiles:buyer_id(full_name,username)").eq("status","open").order("created_at",{ascending:false}),
     sb.from("applications").select("*,jobs:job_id(*),worker:worker_id(full_name,username)").order("created_at",{ascending:false}),
     sb.from("conversations").select("*,buyer:buyer_id(full_name,username),worker:worker_id(full_name,username)").or(`buyer_id.eq.${uid},worker_id.eq.${uid}`).order("updated_at",{ascending:false}),
     sb.from("messages").select("*").order("created_at",{ascending:true}),
     sb.from("portfolio_items").select("*").order("created_at",{ascending:false}),
-    sb.from("notifications").select("*").eq("user_id",uid).order("created_at",{ascending:false})
+    sb.from("notifications").select("*").eq("user_id",uid).order("created_at",{ascending:false}),
+    sb.from("projects").select("*,buyer:buyer_id(full_name,username),worker:worker_id(full_name,username)").or(`buyer_id.eq.${uid},worker_id.eq.${uid}`).order("updated_at",{ascending:false}),
+    sb.from("reviews").select("*").order("created_at",{ascending:false}),
+    sb.from("saved_jobs").select("*").eq("user_id",uid).order("created_at",{ascending:false})
   ]);
   if(p.error) toast(p.error.message,"bad"); else state.profiles=p.data||[];
   if(j.error) toast(j.error.message,"bad"); else state.jobs=j.data||[];
@@ -79,6 +83,9 @@ async function refreshAll(){
   if(m.error) toast(m.error.message,"bad"); else state.messages=m.data||[];
   if(port.error) toast(port.error.message,"bad"); else state.portfolio=port.data||[];
   if(n.error) toast(n.error.message,"bad"); else state.notifications=n.data||[];
+  if(pr.error && !/relation .*projects.* does not exist/i.test(pr.error.message||"")) toast(pr.error.message,"bad"); else state.projects=pr.data||[];
+  if(r.error && !/relation .*reviews.* does not exist/i.test(r.error.message||"")) toast(r.error.message,"bad"); else state.reviews=r.data||[];
+  if(sj.error && !/relation .*saved_jobs.* does not exist/i.test(sj.error.message||"")) toast(sj.error.message,"bad"); else state.savedJobs=sj.data||[];
 }
 
 function showAuth(){ $("#app").classList.add("hidden"); $("#auth").classList.remove("hidden"); $("#loading").classList.add("hidden"); }
@@ -89,33 +96,34 @@ function setAuthTab(tab){
   $("#loginForm").classList.toggle("hidden",tab!=="login"); $("#signupForm").classList.toggle("hidden",tab!=="signup");
 }
 function setRoute(route){
-  const valid=["home","discover","jobs","messages","notifications","profile","settings"];
+  const valid=["home","dashboard","discover","jobs","projects","messages","notifications","profile","settings"];
   state.route=valid.includes(route)?route:"home"; location.hash=state.route; render();
 }
 function render(){
   $$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.route===state.route));
   renderMiniUser();
-  const views={home:renderHome,discover:renderDiscover,jobs:renderJobs,messages:renderMessages,notifications:renderNotifications,profile:renderProfile,settings:renderSettings};
+  const views={home:renderHome,dashboard:renderDashboard,discover:renderDiscover,jobs:renderJobs,projects:renderProjects,messages:renderMessages,notifications:renderNotifications,profile:renderProfile,settings:renderSettings};
   $("#view").innerHTML=(views[state.route]||renderHome)();
   bindView();
 }
 function renderMiniUser(){
   const p=state.profile; if(!p) return;
-  $("#miniUser").innerHTML=`<div class="mini-user-inner"><div class="avatar avatar-sm">${esc(initials(p.full_name))}</div><div><div class="mini-user-name">${esc(p.full_name)}</div><div class="mini-user-role">${esc(p.role)}</div></div></div>`;
-  $("#topProfile").textContent=initials(p.full_name);
+  $("#miniUser").innerHTML=`<div class="mini-user-inner">${avatarHtml(p,"avatar-sm")}<div><div class="mini-user-name">${esc(p.full_name)}</div><div class="mini-user-role">${esc(p.role)}</div></div></div>`;
+  $("#topProfile").innerHTML=p.avatar_url?`<img src="${esc(p.avatar_url)}" alt="Profile">`:esc(initials(p.full_name));
   const unread=state.notifications.filter(n=>!n.read_at).length;
   $("#notifBadge").textContent=unread; $("#notifBadge").classList.toggle("hidden",!unread);
 }
 
 function workerCard(p){
- return `<article class="card worker-card"><div class="worker-top"><div class="avatar">${esc(initials(p.full_name))}</div><div><div class="worker-name">${esc(p.full_name)}</div><div class="handle">@${esc(p.username||"user")} · ${esc(p.role)}</div></div><div class="rate">${money(p.hourly_rate)}<span class="muted">/hr</span></div></div><p class="muted">${esc(p.bio||"No bio yet.")}</p><div class="chips">${(p.skills||[]).slice(0,4).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div><span class="stars">★</span> ${p.rating??"New"} <span class="muted"> · ${p.tools?.length||0} tools</span></div><div class="job-actions"><button class="btn secondary" data-view-worker="${esc(p.id)}">View profile</button>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message</button>`:""}</div></article>`;
+ return `<article class="card worker-card"><div class="worker-top">${avatarHtml(p)}<div><div class="worker-name">${esc(p.full_name)}</div><div class="handle">@${esc(p.username||"user")} · ${esc(p.role)}</div></div><div class="rate">${money(p.hourly_rate)}<span class="muted">/hr</span></div></div><p class="muted">${esc(p.bio||"No bio yet.")}</p><div class="chips">${(p.skills||[]).slice(0,4).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div><span class="stars">★</span> ${p.rating??"New"} <span class="muted"> · ${p.tools?.length||0} tools</span></div><div class="job-actions"><button class="btn secondary" data-view-worker="${esc(p.id)}">View profile</button>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message</button>`:""}</div></article>`;
 }
 function jobCard(j){
  const buyer=j.profiles?.full_name||j.buyer_name||"Buyer";
  const budget=j.budget_min!=null&&j.budget_max!=null?`${money(j.budget_min)}–${money(j.budget_max)}`:money(j.budget_min||j.budget_max);
  const mine=j.buyer_id===state.user?.id;
  const applied=!mine && state.applications.some(a=>a.job_id===j.id && a.worker_id===state.user?.id);
- return `<article class="card job-card"><div class="job-title">${esc(j.title)}</div><div class="job-meta"><span>${esc(buyer)}</span><span>·</span><span>${esc(j.skill)}</span><span>·</span><span>${fmt(j.created_at)}</span></div><p class="muted">${esc(j.description)}</p><div class="job-budget">${budget} <span class="muted">/ ${esc(j.budget_type||"project")}</span></div><div class="job-actions">${mine?`<button class="btn ghost" data-view-apps="${esc(j.id)}">View applications</button>`:applied?`<button class="btn ghost" disabled>Applied</button>`:`<button class="btn primary" data-apply-job="${esc(j.id)}">Apply</button>`}</div></article>`;
+ const saved=state.savedJobs.some(x=>x.job_id===j.id);
+ return `<article class="card job-card"><div class="job-title">${esc(j.title)}</div><div class="job-meta"><span>${esc(buyer)}</span><span>·</span><span>${esc(j.skill)}</span><span>·</span><span>${fmt(j.created_at)}</span></div><p class="muted">${esc(j.description)}</p><div class="job-budget">${budget} <span class="muted">/ ${esc(j.budget_type||"project")}</span></div><div class="job-actions">${mine?`<button class="btn ghost" data-view-apps="${esc(j.id)}">View applications</button>`:applied?`<button class="btn ghost" disabled>Applied</button>`:`<button class="btn primary" data-apply-job="${esc(j.id)}">Apply</button>`}${state.profile?.role==="worker"?`<button class="btn ghost" data-save-job="${esc(j.id)}">${saved?"★ Saved":"☆ Save"}</button>`:""}</div></article>`;
 }
 function renderHome(){
  const workers=state.profiles.filter(p=>p.role==="worker").slice(0,3);
@@ -126,6 +134,26 @@ function renderHome(){
  <section class="section"><div class="section-title"><h2>People worth discovering</h2><button class="btn ghost" data-route="discover">See all</button></div><div class="grid">${workers.map(workerCard).join("")||`<div class="empty">No workers yet.</div>`}</div></section>
  <section class="section"><div class="section-title"><h2>Latest jobs</h2><button class="btn ghost" data-route="jobs">View jobs</button></div><div class="grid">${jobs.map(jobCard).join("")||`<div class="empty">No jobs yet.</div>`}</div></section>`;
 }
+function renderDashboard(){
+ const mineProjects=state.projects.filter(p=>p.buyer_id===state.user?.id||p.worker_id===state.user?.id);
+ const active=mineProjects.filter(p=>p.status==='active').length, completed=mineProjects.filter(p=>p.status==='completed').length;
+ const pending=state.applications.filter(a=>a.status==='pending' && (a.worker_id===state.user?.id || a.jobs?.buyer_id===state.user?.id)).length;
+ const unread=state.notifications.filter(n=>!n.read_at).length;
+ return `<div class="page-head"><div><p class="eyebrow">YOUR WORKSPACE</p><h1>Dashboard</h1><p>Keep track of applications, conversations and projects in one place.</p></div><button class="btn primary" data-route="projects">View projects</button></div>
+ <div class="stats-strip dashboard-stats"><div><strong>${active}</strong><span>active projects</span></div><div><strong>${completed}</strong><span>completed</span></div><div><strong>${pending}</strong><span>pending applications</span></div><div><strong>${unread}</strong><span>unread notifications</span></div></div>
+ <section class="section"><div class="section-title"><h2>Recent activity</h2><button class="btn ghost" data-route="notifications">See notifications</button></div><div class="card">${state.notifications.slice(0,5).map(n=>`<div class="setting-row"><div><strong>${esc(n.title)}</strong><small>${esc(n.body)} · ${ago(n.created_at)}</small></div>${n.read_at?'':'<span class="chip">New</span>'}</div>`).join('')||'<div class="empty">No activity yet.</div>'}</div></section>
+ <section class="section"><div class="section-title"><h2>Active projects</h2><button class="btn ghost" data-route="projects">See all</button></div><div class="grid two">${mineProjects.filter(p=>p.status==='active').slice(0,4).map(projectCard).join('')||'<div class="empty">No active projects yet.</div>'}</div></section>`;
+}
+function projectCard(p){
+ const other=p.buyer_id===state.user?.id?p.worker:p.buyer;
+ const canReview=p.status==='completed' && p.buyer_id!==p.worker_id && !state.reviews.some(r=>r.project_id===p.id&&r.reviewer_id===state.user?.id);
+ return `<article class="card job-card"><div class="eyebrow">${esc(p.status)}</div><div class="job-title">${esc(p.title)}</div><div class="job-meta"><span>With ${esc(other?.full_name||'teammate')}</span><span>·</span><span>Started ${fmt(p.created_at)}</span></div><p class="muted">${esc(p.description||'Project details')}</p><div class="job-budget">${p.budget!=null?money(p.budget):'Budget not set'}${p.due_date?` <span class="muted">· due ${esc(fmt(p.due_date))}</span>`:''}</div><div class="job-actions">${p.buyer_id===state.user?.id?`<button class="btn secondary" data-edit-project="${p.id}">Manage</button>`:''}${p.status==='active'&&p.worker_id===state.user?.id?`<button class="btn primary" data-complete-project="${p.id}">Mark complete</button>`:''}${canReview?`<button class="btn ghost" data-review-project="${p.id}">Leave review</button>`:''}</div></article>`;
+}
+function renderProjects(){
+ const mine=state.projects.filter(p=>p.buyer_id===state.user?.id||p.worker_id===state.user?.id);
+ const active=mine.filter(p=>p.status==='active'), done=mine.filter(p=>p.status!=='active');
+ return `<div class="page-head"><div><p class="eyebrow">COLLABORATION</p><h1>Projects</h1><p>Accepted jobs become shared project spaces where work can be tracked through completion.</p></div></div><section class="section"><div class="section-title"><h2>Active</h2><span class="muted">${active.length}</span></div><div class="grid two">${active.map(projectCard).join('')||'<div class="empty">No active projects. Accept an application or apply for a job to get started.</div>'}</div></section><section class="section"><div class="section-title"><h2>Completed & cancelled</h2><span class="muted">${done.length}</span></div><div class="grid two">${done.map(projectCard).join('')||'<div class="empty">Nothing here yet.</div>'}</div></section>`;
+}
 function renderDiscover(){
  const q=($("#globalSearch")?.value||"").trim().toLowerCase();
  const workers=state.profiles.filter(p=>p.role==="worker" && (!q || [p.full_name,p.username,p.bio,...(p.skills||[]),...(p.tools||[])].join(" ").toLowerCase().includes(q)));
@@ -135,23 +163,31 @@ function renderJobs(){
  const q=($("#globalSearch")?.value||"").trim().toLowerCase();
  const jobs=state.jobs.filter(j=>!q || [j.title,j.description,j.skill,j.profiles?.full_name].join(" ").toLowerCase().includes(q));
  const myApps=state.applications.filter(a=>a.worker_id===state.user?.id);
+ const saved=state.jobs.filter(j=>state.savedJobs.some(x=>x.job_id===j.id));
  const appsBlock=state.profile?.role==='worker'?`<section class="section"><div class="section-title"><h2>Your applications</h2><span class="muted">${myApps.length}</span></div><div class="grid two">${myApps.length?myApps.slice(0,6).map(a=>`<article class="card job-card"><div class="job-title">${esc(a.jobs?.title||'Job')}</div><div class="job-meta"><span>${esc(a.jobs?.skill||'')}</span><span>·</span><span>${fmt(a.created_at)}</span></div><p class="muted">Status: <strong class="status-${esc(a.status)}">${esc(a.status)}</strong></p></article>`).join(''):`<div class="empty">You haven't applied to any jobs yet.</div>`}</div></section>`:'';
- return `<div class="page-head"><div><p class="eyebrow">OPPORTUNITIES</p><h1>Jobs</h1><p>Find work or hire someone for your next project.</p></div>${state.profile?.role==='buyer'?`<button class="btn primary" id="postJobBtn">＋ Post a job</button>`:''}</div><div class="grid">${jobs.map(jobCard).join("")||`<div class="empty">No open jobs match your search.</div>`}</div>${appsBlock}`;
+ const savedBlock=state.profile?.role==='worker'?`<section class="section"><div class="section-title"><h2>Saved jobs</h2><span class="muted">${saved.length}</span></div><div class="grid two">${saved.map(jobCard).join('')||`<div class="empty">Save jobs you want to come back to later.</div>`}</div></section>`:'';
+ return `<div class="page-head"><div><p class="eyebrow">OPPORTUNITIES</p><h1>Jobs</h1><p>Find work or hire someone for your next project.</p></div>${state.profile?.role==='buyer'?`<button class="btn primary" id="postJobBtn">＋ Post a job</button>`:''}</div><div class="grid">${jobs.map(jobCard).join("")||`<div class="empty">No open jobs match your search.</div>`}</div>${appsBlock}${savedBlock}`;
+}
+function notificationTargetLabel(n){
+ const map={message:"Open message",application:"Open application",job:"Open job",project:"Open project",profile:"Open profile"};
+ return map[n.target_type]||"View update";
 }
 function renderNotifications(){
  const ns=state.notifications;
- return `<div class="page-head"><div><h1>Notifications</h1><p>Updates about applications, messages and activity.</p></div>${ns.length?`<button class="btn ghost" id="readAll">Mark all read</button>`:""}</div>${ns.length?`<div class="card">${ns.map(n=>`<div class="setting-row"><div><strong>${esc(n.title||"Collably update")}</strong><small>${esc(n.body||"")} · ${ago(n.created_at)}</small></div>${n.read_at?`<span class="muted">Read</span>`:`<span class="chip">New</span>`}</div>`).join("")}</div>`:`<div class="empty">You're all caught up.</div>`}`;
+ return `<div class="page-head"><div><p class="eyebrow">UPDATES</p><h1>Notifications</h1><p>Click an update to jump straight to what happened.</p></div>${ns.length?`<button class="btn ghost" id="readAll">Mark all read</button>`:""}</div>${ns.length?`<div class="notification-list">${ns.map(n=>`<button class="notification-item ${n.read_at?"":"unread"}" data-notification-id="${esc(n.id)}"><div class="notification-icon">${n.target_type==="message"?"✉":n.target_type==="application"?"✓":n.target_type==="project"?"▣":n.target_type==="profile"?"◎":"♢"}</div><div class="notification-main"><strong>${esc(n.title||"Collably update")}</strong><small>${esc(n.body||"")}</small><span>${ago(n.created_at)}${n.target_type?` · ${notificationTargetLabel(n)}`:""}</span></div>${n.read_at?`<span class="notification-status">Read</span>`:`<span class="chip">New</span>`}</button>`).join("")}</div>`:`<div class="empty">You're all caught up.</div>`}`;
 }
 function renderProfile(){
- const p=state.profile, mine=state.portfolio.filter(x=>x.user_id===p?.id);
- return `<div class="profile-head"><div class="avatar profile-avatar">${esc(initials(p?.full_name))}</div><div><h1 style="margin:0">${esc(p?.full_name||"Profile")}</h1><div class="handle">@${esc(p?.username||"user")} · ${esc(p?.role||"")}</div><p class="muted">${esc(p?.bio||"Add a bio in Settings.")}</p><div class="chips">${(p?.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div class="profile-stats"><div class="stat"><strong>${mine.length}</strong><span>Portfolio</span></div><div class="stat"><strong>${p?.rating??"New"}</strong><span>Rating</span></div><div class="stat"><strong>${money(p?.hourly_rate)}</strong><span>Hourly</span></div></div></div></div>
- <section class="section"><div class="section-title"><h2>Portfolio</h2>${p?.role==="worker"?`<button class="btn primary" id="addPortfolioBtn">＋ Add work</button>`:""}</div>${mine.length?`<div class="portfolio-grid">${mine.map(portfolioThumb).join("")}</div>`:`<div class="empty">Your portfolio is empty. Add your first piece of work.</div>`}</section>`;
+ const p=state.profile, mine=state.portfolio.filter(x=>x.user_id===p?.id), reviews=state.reviews.filter(r=>r.reviewee_id===p?.id);
+ return `<div class="profile-head">${avatarHtml(p,"profile-avatar")}<div><h1 style="margin:0">${esc(p?.full_name||"Profile")}</h1><div class="handle">@${esc(p?.username||"user")} · ${esc(p?.role||"")}</div><p class="muted">${esc(p?.bio||"Add a bio in Settings.")}</p><div class="chips">${(p?.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><div class="profile-stats"><div class="stat"><strong>${mine.length}</strong><span>Portfolio</span></div><div class="stat"><strong>${p?.rating??"New"}</strong><span>Rating</span></div><div class="stat"><strong>${reviews.length}</strong><span>Reviews</span></div><div class="stat"><strong>${money(p?.hourly_rate)}</strong><span>Hourly</span></div></div></div></div>
+ <section class="section"><div class="section-title"><h2>Portfolio</h2>${p?.role==="worker"?`<button class="btn primary" id="addPortfolioBtn">＋ Add work</button>`:""}</div>${mine.length?`<div class="portfolio-grid">${mine.map(portfolioThumb).join("")}</div>`:`<div class="empty">Your portfolio is empty. Add your first piece of work.</div>`}</section>
+ <section class="section"><div class="section-title"><h2>Reviews</h2></div>${reviews.length?`<div class="card">${reviews.slice(0,8).map(r=>`<div class="setting-row"><div><strong><span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span></strong><small>${esc(r.comment||'No comment')} · ${fmt(r.created_at)}</small></div></div>`).join('')}</div>`:`<div class="empty">Reviews will appear here after completed projects.</div>`}</section>`;
 }
 function portfolioThumb(x){ return `<div class="portfolio-thumb">${x.media_url?(x.media_type==="video"?`<video src="${esc(x.media_url)}" controls></video>`:`<img src="${esc(x.media_url)}" alt="${esc(x.title)}">`):`<span>${esc(x.title)}</span>`}</div>`; }
 function renderSettings(){
  const p=state.profile||{};
  return `<div class="page-head"><div><h1>Settings</h1><p>Keep your Collably profile up to date.</p></div></div>
  <div class="card"><form id="profileForm" class="form">
+ <div class="profile-photo-editor"><div>${avatarHtml(p,"profile-avatar profile-avatar-small")}</div><div><strong>Profile picture</strong><p class="muted">Use a clear image so people can recognise you.</p><label class="btn ghost upload-btn" for="avatarFile">Choose image<input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><small id="avatarFileName" class="form-note">PNG, JPG or WebP · max 5 MB</small></div></div>
  <div class="two-col"><label>Full name<input id="setName" value="${esc(p.full_name)}" required></label><label>Username<input id="setUsername" value="${esc(p.username)}" pattern="[A-Za-z0-9_]+" required></label></div>
  <label>Bio<textarea id="setBio" maxlength="500">${esc(p.bio||"")}</textarea></label>
  <div class="two-col"><label>Hourly rate<input id="setRate" type="number" min="0" step="1" value="${p.hourly_rate??""}"></label><label>Skills<input id="setSkills" value="${esc((p.skills||[]).join(", "))}" placeholder="Video Editing, YouTube, Shorts"></label></div>
@@ -168,10 +204,37 @@ function renderMessages(){
  const people=c?(c.buyer_id===state.user?.id?c.worker:c.buyer):null;
  const msgs=c?state.messages.filter(m=>m.conversation_id===c.id):[];
  return `<div class="page-head"><div><h1>Messages</h1><p>Talk directly with people you're working with.</p></div></div>
- <div class="messages-layout"><div class="conversation-list">${convs.length?convs.map(x=>{const person=x.buyer_id===state.user?.id?x.worker:x.buyer;return `<button class="conversation ${x.id===c?.id?"active":""}" data-conversation="${x.id}"><div class="avatar avatar-sm">${esc(initials(person?.full_name||"U"))}</div><div><strong>${esc(person?.full_name||"Conversation")}</strong><small>${esc(x.last_message||"Start a conversation")}</small></div></button>`}).join(""):`<div class="empty" style="margin:14px">No conversations yet.</div>`}</div>
+ <div class="messages-layout"><div class="conversation-list">${convs.length?convs.map(x=>{const person=x.buyer_id===state.user?.id?x.worker:x.buyer;return `<button class="conversation ${x.id===c?.id?"active":""}" data-conversation="${x.id}">${avatarHtml(person,"avatar-sm")}<div><strong>${esc(person?.full_name||"Conversation")}</strong><small>${esc(x.last_message||"Start a conversation")}</small></div></button>`}).join(""):`<div class="empty" style="margin:14px">No conversations yet.</div>`}</div>
  <div class="chat">${c?`<div class="chat-head">${esc(people?.full_name||"Conversation")}</div><div class="chat-body">${msgs.map(m=>`<div class="bubble ${m.sender_id===state.user?.id?"mine":""}">${esc(m.body)}<small>${ago(m.created_at)}</small></div>`).join("")||`<div class="empty">Send the first message.</div>`}</div><form id="messageForm" class="chat-form"><input id="messageInput" placeholder="Write a message…" autocomplete="off" required><button class="btn primary">Send</button></form>`:`<div class="empty" style="margin:auto">Choose a conversation to start chatting.</div>`}</div></div>`;
 }
 
+async function openNotification(id){
+ const n=state.notifications.find(x=>x.id===id); if(!n)return;
+ if(!n.read_at){
+   n.read_at=new Date().toISOString();
+   if(!isDemo()) await sb.from('notifications').update({read_at:n.read_at}).eq('id',id).eq('user_id',state.user.id);
+ }
+ const type=n.target_type, target=n.target_id;
+ if(type==='message'){state.selectedConversation=target;setRoute('messages');return;}
+ if(type==='application'){
+   const a=state.applications.find(x=>x.id===target);
+   if(a){
+     if(state.profile?.role==='buyer'){
+       const jobId=a.job_id||a.jobs?.id; if(jobId){setRoute('jobs');setTimeout(()=>viewApplications(jobId),0);return;}
+     } else {
+       openModal('applicationDetailModal');
+       $('#notificationApplicationTitle').textContent=a.jobs?.title||'Job application';
+       $('#notificationApplicationContent').innerHTML=`<div class="notification-detail-card"><div class="setting-row"><div><strong>Status</strong><small class="status-${esc(a.status)}">${esc(a.status)}</small></div></div><div class="setting-row"><div><strong>Job</strong><small>${esc(a.jobs?.title||'Job')}</small></div></div><div class="setting-row"><div><strong>Your message</strong><small>${esc(a.cover_message||'No cover message.')}</small></div></div><div class="job-actions"><button class="btn primary" id="applicationDetailAction">${a.status==='accepted'?'View project':'View dashboard'}</button></div></div>`;
+       $('#applicationDetailAction').onclick=()=>{closeModal('applicationDetailModal');setRoute(a.status==='accepted'?'projects':'dashboard');};
+       return;
+     }
+   }
+ }
+ if(type==='job'){setRoute('jobs');return;}
+ if(type==='project'){setRoute('projects');return;}
+ if(type==='profile'){viewWorker(target);return;}
+ render();
+}
 function bindView(){
  $$("#view [data-route]").forEach(b=>b.addEventListener("click",()=>setRoute(b.dataset.route)));
  $("#postJobBtn")?.addEventListener("click",()=>openModal("jobModal"));
@@ -180,15 +243,21 @@ function bindView(){
  $$("#view [data-message-worker]").forEach(b=>b.addEventListener("click",()=>startConversation(b.dataset.messageWorker)));
  $$("#view [data-apply-job]").forEach(b=>b.addEventListener("click",()=>applyJob(b.dataset.applyJob)));
  $$("#view [data-view-apps]").forEach(b=>b.addEventListener("click",()=>viewApplications(b.dataset.viewApps)));
+ $$("#view [data-save-job]").forEach(b=>b.addEventListener("click",()=>toggleSavedJob(b.dataset.saveJob)));
+ $$("#view [data-edit-project]").forEach(b=>b.addEventListener("click",()=>openProjectEditor(b.dataset.editProject)));
+ $$("#view [data-complete-project]").forEach(b=>b.addEventListener("click",()=>completeProject(b.dataset.completeProject)));
+ $$("#view [data-review-project]").forEach(b=>b.addEventListener("click",()=>openReview(b.dataset.reviewProject)));
  $("#readAll")?.addEventListener("click",markNotificationsRead);
  $("#profileForm")?.addEventListener("submit",saveProfile);
  $("#messageForm")?.addEventListener("submit",sendMessage);
  $$("#view [data-conversation]").forEach(b=>b.addEventListener("click",()=>{state.selectedConversation=b.dataset.conversation;render();}));
+ $$("#view [data-notification-id]").forEach(b=>b.addEventListener("click",()=>openNotification(b.dataset.notificationId)));
+ $("#avatarFile")?.addEventListener("change",e=>{const file=e.target.files?.[0];if(file){$("#avatarFileName").textContent=file.name;uploadAvatar(file);}});
 }
 function viewWorker(id){
  const p=state.profiles.find(x=>x.id===id); if(!p) return;
- const items=state.portfolio.filter(x=>x.user_id===id);
- $("#view").innerHTML=`<button class="btn ghost" id="backDiscover">← Back</button><div class="profile-head" style="margin-top:14px"><div class="avatar profile-avatar">${esc(initials(p.full_name))}</div><div><h1 style="margin:0">${esc(p.full_name)}</h1><div class="handle">@${esc(p.username)} · ${esc(p.role)}</div><p class="muted">${esc(p.bio||"")}</p><div class="chips">${(p.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><p><span class="stars">★</span> ${p.rating??"New"} · ${money(p.hourly_rate)}/hr</p>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message ${esc(p.full_name)}</button>`:""}</div></div><section class="section"><div class="section-title"><h2>Portfolio</h2></div>${items.length?`<div class="portfolio-grid">${items.map(portfolioThumb).join("")}</div>`:`<div class="empty">No portfolio items yet.</div>`}</section>`;
+ const items=state.portfolio.filter(x=>x.user_id===id); const reviews=state.reviews.filter(r=>r.reviewee_id===id);
+ $("#view").innerHTML=`<button class="btn ghost" id="backDiscover">← Back</button><div class="profile-head" style="margin-top:14px">${avatarHtml(p,"profile-avatar")}<div><h1 style="margin:0">${esc(p.full_name)}</h1><div class="handle">@${esc(p.username)} · ${esc(p.role)}</div><p class="muted">${esc(p.bio||"")}</p><div class="chips">${(p.skills||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div><p><span class="stars">★</span> ${p.rating??"New"} · ${money(p.hourly_rate)}/hr</p>${state.profile?.role==="buyer"?`<button class="btn primary" data-message-worker="${esc(p.id)}">Message ${esc(p.full_name)}</button>`:""}</div></div><section class="section"><div class="section-title"><h2>Portfolio</h2></div>${items.length?`<div class="portfolio-grid">${items.map(portfolioThumb).join("")}</div>`:`<div class="empty">No portfolio items yet.</div>`}</section><section class="section"><div class="section-title"><h2>Reviews</h2></div>${reviews.length?`<div class="card">${reviews.slice(0,8).map(r=>`<div class="setting-row"><div><strong><span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span></strong><small>${esc(r.comment||'No comment')} · ${fmt(r.created_at)}</small></div></div>`).join('')}</div>`:`<div class="empty">No reviews yet.</div>`}</section>`;
  $("#backDiscover").addEventListener("click",()=>setRoute("discover")); $("#view [data-message-worker]")?.addEventListener("click",()=>startConversation(p.id));
 }
 async function viewApplications(jobId){
@@ -199,7 +268,7 @@ async function viewApplications(jobId){
  for(const a of rows){ const worker=state.profiles.find(p=>p.id===a.worker_id); enriched.push({...a,worker}); }
  openModal("applicationsModal");
  const box=$("#applicationsContent");
- box.innerHTML=`<h2>Applications</h2><p class="muted">${esc(job.title)} · ${enriched.length} application${enriched.length===1?'':'s'}</p>${enriched.length?enriched.map(a=>`<div class="application-row"><div class="avatar">${esc(initials(a.worker?.full_name||'Worker'))}</div><div class="application-main"><strong>${esc(a.worker?.full_name||'Worker')}</strong><span class="handle">@${esc(a.worker?.username||'')}</span><p>${esc(a.cover_message||'No cover message.')}</p><div class="chips">${(a.worker?.skills||[]).slice(0,4).map(s=>`<span class="chip">${esc(s)}</span>`).join('')}</div></div><div class="application-actions"><span class="chip status-${esc(a.status)}">${esc(a.status)}</span><button class="btn ghost" data-app-message="${esc(a.worker_id)}">Message</button>${a.status==='pending'?`<button class="btn primary" data-accept-app="${esc(a.id)}">Accept</button>`:''}</div></div>`).join(''):`<div class="empty">No applications yet. When workers apply, they'll appear here.</div>`}`;
+ box.innerHTML=`<h2>Applications</h2><p class="muted">${esc(job.title)} · ${enriched.length} application${enriched.length===1?'':'s'}</p>${enriched.length?enriched.map(a=>`<div class="application-row">${avatarHtml(a.worker)}<div class="application-main"><strong>${esc(a.worker?.full_name||'Worker')}</strong><span class="handle">@${esc(a.worker?.username||'')}</span><p>${esc(a.cover_message||'No cover message.')}</p><div class="chips">${(a.worker?.skills||[]).slice(0,4).map(s=>`<span class="chip">${esc(s)}</span>`).join('')}</div></div><div class="application-actions"><span class="chip status-${esc(a.status)}">${esc(a.status)}</span><button class="btn ghost" data-app-message="${esc(a.worker_id)}">Message</button>${a.status==='pending'?`<button class="btn primary" data-accept-app="${esc(a.id)}">Accept</button>`:''}</div></div>`).join(''):`<div class="empty">No applications yet. When workers apply, they'll appear here.</div>`}`;
  $$("[data-app-message]").forEach(b=>b.onclick=()=>startConversation(b.dataset.appMessage));
  $$("[data-accept-app]").forEach(b=>b.onclick=()=>acceptApplication(b.dataset.acceptApp,job));
 }
@@ -235,7 +304,7 @@ async function acceptApplication(appId,job){
       .eq('buyer_id',state.user.id);
     if(jobResult.error) console.warn('Application accepted, but job status could not be updated:',jobResult.error.message);
 
-    await notifyUser(existing.worker_id,'Application accepted',`Your application for “${job.title}” was accepted.`);
+    await notifyUser(existing.worker_id,'Application accepted',`Your application for “${job.title}” was accepted.`,'application',appId);
     closeModal('applicationsModal');
     await refreshAll();
     toast('Application accepted.','good');
@@ -246,9 +315,10 @@ async function acceptApplication(appId,job){
     toast(e?.message||'Could not accept the application.','bad');
   }
 }
-async function notifyUser(userId,title,body){
+async function notifyUser(userId,title,body,target_type=null,target_id=null){
  if(isDemo()||!userId||userId===state.user?.id)return;
- const {error}=await sb.from('notifications').insert({user_id:userId,title,body});
+ const payload={user_id:userId,title,body,target_type,target_id};
+ const {error}=await sb.from('notifications').insert(payload);
  if(error)console.warn('notification:',error.message);
 }
 
@@ -259,7 +329,7 @@ async function applyJob(jobId){
  const job=state.jobs.find(x=>x.id===jobId);
  openModal("applicationModal");
  $("#applicationJobTitle").textContent=job?.title||"Job application";
- $("#applicationForm").onsubmit=async e=>{e.preventDefault();const cover=$("#applicationCover").value.trim();if(!cover){toast("Add a short message with your application.","bad");return;}const {error}=await sb.from("applications").insert({job_id:jobId,worker_id:state.user.id,cover_message:cover});if(error){toast(error.message,"bad");return;}if(job)await notifyUser(job.buyer_id,'New application',`${state.profile.full_name} applied for “${job.title}”.`);closeModal("applicationModal");toast("Application sent.","good");await refreshAll();render();};
+ $("#applicationForm").onsubmit=async e=>{e.preventDefault();const cover=$("#applicationCover").value.trim();if(!cover){toast("Add a short message with your application.","bad");return;}const {data:created,error}=await sb.from("applications").insert({job_id:jobId,worker_id:state.user.id,cover_message:cover}).select("id").single();if(error){toast(error.message,"bad");return;}if(job)await notifyUser(job.buyer_id,'New application',`${state.profile.full_name} applied for “${job.title}”.`,'application',created?.id||null);closeModal("applicationModal");toast("Application sent.","good");await refreshAll();render();};
 }
 async function startConversation(workerId){
  const target=state.profiles.find(p=>p.id===workerId);
@@ -280,8 +350,25 @@ async function sendMessage(e){
  if(error){toast(error.message,"bad");return;}
  const recipient=c.buyer_id===state.user.id?c.worker_id:c.buyer_id;
  await sb.from('conversations').update({last_message:body,updated_at:new Date().toISOString()}).eq('id',c.id);
- await notifyUser(recipient,`New message from ${state.profile.full_name}`,body);
+ await notifyUser(recipient,`New message from ${state.profile.full_name}`,body,'message',c.id);
  input.value=""; await refreshAll(); render();
+}
+async function uploadAvatar(file){
+ if(!file)return;
+ if(file.size>5*1024*1024){toast("Profile pictures must be 5 MB or smaller.","bad");return;}
+ if(!/^image\/(png|jpeg|webp)$/.test(file.type)){toast("Please choose a PNG, JPG or WebP image.","bad");return;}
+ if(isDemo()){
+   state.profile.avatar_url=URL.createObjectURL(file);
+   toast("Profile picture updated in demo mode.","good"); render(); return;
+ }
+ const path=`${state.user.id}/avatar-${Date.now()}.${file.type.split('/')[1].replace('jpeg','jpg')}`;
+ const {error:upError}=await sb.storage.from('avatars').upload(path,file,{upsert:true,contentType:file.type,cacheControl:'3600'});
+ if(upError){toast(upError.message,"bad");return;}
+ const {data}=sb.storage.from('avatars').getPublicUrl(path);
+ const {data:profile,error}=await sb.from('profiles').update({avatar_url:data.publicUrl,updated_at:new Date().toISOString()}).eq('id',state.user.id).select().single();
+ if(error){toast(error.message,"bad");return;}
+ state.profile=profile; state.profiles=state.profiles.map(x=>x.id===profile.id?profile:x);
+ toast("Profile picture updated.","good"); render();
 }
 async function saveProfile(e){
  e.preventDefault();
@@ -312,6 +399,38 @@ async function addPortfolio(e){
  if(error){toast(error.message,"bad");return;}
  closeModal("portfolioModal");e.target.reset();await refreshAll();toast("Portfolio item added.","good");setRoute("profile");
 }
+async function toggleSavedJob(jobId){
+ if(state.profile?.role!=='worker'){toast('Only workers can save jobs.','bad');return;}
+ const existing=state.savedJobs.find(x=>x.job_id===jobId);
+ if(isDemo()){ if(existing) state.savedJobs=state.savedJobs.filter(x=>x.job_id!==jobId); else state.savedJobs.push({user_id:state.user.id,job_id:jobId}); render(); return; }
+ const result=existing?await sb.from('saved_jobs').delete().eq('user_id',state.user.id).eq('job_id',jobId):await sb.from('saved_jobs').insert({user_id:state.user.id,job_id:jobId});
+ if(result.error){toast(result.error.message,'bad');return;} await refreshAll(); render();
+}
+async function completeProject(projectId){
+ const p=state.projects.find(x=>x.id===projectId); if(!p||p.worker_id!==state.user?.id)return;
+ if(isDemo()){p.status='completed';toast('Project marked complete.','good');render();return;}
+ const {error}=await sb.from('projects').update({status:'completed',updated_at:new Date().toISOString()}).eq('id',projectId).eq('worker_id',state.user.id);
+ if(error){toast(error.message,'bad');return;} await refreshAll(); toast('Project marked complete.','good'); render();
+}
+function openProjectEditor(projectId){
+ const p=state.projects.find(x=>x.id===projectId); if(!p||p.buyer_id!==state.user?.id)return;
+ $('#projectModalTitle').textContent=p.title; $('#projectDescription').value=p.description||''; $('#projectBudget').value=p.budget??''; $('#projectDue').value=p.due_date||''; $('#projectStatus').value=p.status; $('#projectForm').dataset.projectId=projectId; openModal('projectModal');
+}
+async function saveProject(e){
+ e.preventDefault(); const id=e.target.dataset.projectId; const p=state.projects.find(x=>x.id===id); if(!p)return;
+ const payload={description:$('#projectDescription').value.trim(),budget:$('#projectBudget').value?Number($('#projectBudget').value):null,due_date:$('#projectDue').value||null,status:$('#projectStatus').value,updated_at:new Date().toISOString()};
+ if(isDemo()){Object.assign(p,payload);closeModal('projectModal');toast('Project updated.','good');render();return;}
+ const {error}=await sb.from('projects').update(payload).eq('id',id).eq('buyer_id',state.user.id); if(error){toast(error.message,'bad');return;} closeModal('projectModal');await refreshAll();toast('Project updated.','good');render();
+}
+function openReview(projectId){
+ const p=state.projects.find(x=>x.id===projectId); if(!p)return; const other=p.buyer_id===state.user?.id?p.worker:p.buyer;
+ $('#reviewProjectId').value=projectId; $('#reviewTitle').textContent=`Review ${other?.full_name||'your teammate'}`; $('#reviewComment').value=''; openModal('reviewModal');
+}
+async function saveReview(e){
+ e.preventDefault(); const projectId=$('#reviewProjectId').value, p=state.projects.find(x=>x.id===projectId); if(!p)return; const reviewee=p.buyer_id===state.user.id?p.worker_id:p.buyer_id; const payload={project_id:projectId,reviewer_id:state.user.id,reviewee_id:reviewee,rating:Number($('#reviewRating').value),comment:$('#reviewComment').value.trim()};
+ if(isDemo()){state.reviews.push({id:'dr'+Date.now(),...payload,created_at:new Date().toISOString()});closeModal('reviewModal');toast('Review published.','good');render();return;}
+ const {error}=await sb.from('reviews').insert(payload); if(error){toast(error.message,'bad');return;} closeModal('reviewModal');await refreshAll();toast('Review published.','good');render();
+}
 async function markNotificationsRead(){
  if(isDemo()){state.notifications.forEach(n=>n.read_at=new Date().toISOString());render();return;}
  await sb.from("notifications").update({read_at:new Date().toISOString()}).eq("user_id",state.user.id).is("read_at",null);await refreshAll();render();
@@ -321,7 +440,7 @@ function setup(){
  $$(".auth-tab").forEach(b=>b.addEventListener("click",()=>setAuthTab(b.dataset.authTab)));
  $$(".role-card").forEach(b=>b.addEventListener("click",()=>{$$(".role-card").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("#signupRole").value=b.dataset.role;}));
  $("#closeAuth").addEventListener("click",()=>{ if(state.user) showApp(); });
- $("#demoBtn").addEventListener("click",()=>{state.user=DEMO.user;state.profile=DEMO.profile;state.profiles=DEMO.profiles;state.jobs=DEMO.jobs;state.applications=DEMO.apps;state.conversations=[];state.messages=[];state.portfolio=[];showApp();toast("Demo mode loaded.","good");});
+ $("#demoBtn").addEventListener("click",()=>{state.user=DEMO.user;state.profile=DEMO.profile;state.profiles=DEMO.profiles;state.jobs=DEMO.jobs;state.applications=DEMO.apps;state.conversations=[];state.messages=[];state.portfolio=[];state.projects=[];state.reviews=[];state.savedJobs=[];showApp();toast("Demo mode loaded.","good");});
  $("#loginForm").addEventListener("submit",async e=>{e.preventDefault();if(demoMode){toast("Demo mode is active. Connect Supabase in config.js for real accounts.","bad");return;}const {error}=await sb.auth.signInWithPassword({email:$("#loginEmail").value,password:$("#loginPassword").value});if(error)toast(error.message,"bad");});
  $("#signupForm").addEventListener("submit",async e=>{e.preventDefault();if(demoMode){toast("Connect Supabase in config.js to create real accounts.","bad");return;}const name=$("#signupName").value.trim(),username=$("#signupUsername").value.trim(),email=$("#signupEmail").value.trim(),password=$("#signupPassword").value,role=$("#signupRole").value;const {data,error}=await sb.auth.signUp({email,password,options:{data:{full_name:name,username,role}}});if(error){toast(error.message,"bad");return;}if(data.session){toast("Account created.","good");}else{toast("Account created. Check your email to confirm it, then log in.","good");setAuthTab("login");}});
  $$("#app [data-route]").forEach(b=>b.addEventListener("click",()=>setRoute(b.dataset.route)));
@@ -331,6 +450,7 @@ function setup(){
  $("#createJob").addEventListener("click",()=>{closeModal("createModal");if(state.profile?.role!=="buyer"){toast("Switch to a buyer account to post jobs.","bad");return;}openModal("jobModal");});
  $("#createPortfolio").addEventListener("click",()=>{closeModal("createModal");if(state.profile?.role!=="worker"){toast("Switch to a worker account to add portfolio work.","bad");return;}openModal("portfolioModal");});
  $("#jobForm").addEventListener("submit",createJob);$("#portfolioForm").addEventListener("submit",addPortfolio);
+ $("#projectForm")?.addEventListener("submit",saveProject); $("#reviewForm")?.addEventListener("submit",saveReview);
  $$(".close-modal").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
  $$(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.add("hidden");}));
  $("#globalSearch").addEventListener("input",()=>{const q=$("#globalSearch").value.trim();if(q && state.route!=="discover" && state.route!=="jobs"){setRoute("discover");return;}if(state.route==="discover"||state.route==="jobs")render();});
@@ -343,7 +463,7 @@ async function init(){
  await loadSession();
  if(state.user) showApp(); else showAuth();
  if(!isDemo()){
-   sb.channel("collably-messages").on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},async()=>{await refreshAll();if(state.route==="messages")render();}).subscribe();
+   sb.channel("collably-live").on("postgres_changes",{event:"*",schema:"public",table:"messages"},async()=>{await refreshAll();if(state.route==="messages")render();}).on("postgres_changes",{event:"*",schema:"public",table:"projects"},async()=>{await refreshAll();if(["projects","dashboard"].includes(state.route))render();}).on("postgres_changes",{event:"*",schema:"public",table:"reviews"},async()=>{await refreshAll();if(["profile","projects"].includes(state.route))render();}).on("postgres_changes",{event:"*",schema:"public",table:"notifications",filter:`user_id=eq.${state.user.id}`},async()=>{await refreshAll();render();}).subscribe();
  }
 }
 init();
